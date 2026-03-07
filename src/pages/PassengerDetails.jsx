@@ -1,0 +1,261 @@
+import React, { useContext, useEffect, useState } from 'react'
+import { IoIosArrowRoundBack } from 'react-icons/io'
+import { LuUser } from "react-icons/lu";
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Booking_API, Bus_API, Razorpay_API } from '../utils/constant';
+import { io } from 'socket.io-client';
+import AuthContext from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
+import { motion } from "framer-motion"
+
+const PassengerDetails = () => {
+  const navigate = useNavigate()
+  const { showAlert } = useDialog();
+  const { state } = useLocation()
+  const [BusDetails, setBusDetails] = useState({})
+  const [passengerDetails, setPassengerDetails] = useState(
+    state.selectedSeats.map((seatId) => ({
+      seatId,
+      name: '',
+      age: '',
+      gender: ''
+    }))
+  )
+  const socket = io("https://triptix-backend-4ryx.onrender.com/")
+  const { token } = useContext(AuthContext)
+  useEffect(() => {
+
+    const fetchBusDetails = async () => {
+      try {
+        const fetchBus = await fetch(`${Bus_API}/${state.busId}`);
+        const json = await fetchBus.json();
+        setBusDetails(json);
+      } catch (err) {
+        console.log(err.message);
+      }
+    };
+    fetchBusDetails();
+  }, []);
+
+  const handleBooking = async () => {
+    const userId = localStorage.getItem("user");
+
+    try {
+      const res = await fetch(Booking_API, {
+        method: 'POST',
+        headers: {
+          'authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId,
+          busId: state.busId,
+          seatIds: state.selectedSeats,
+          passengerDetails
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showAlert("Booking successful!", 'Thành công');
+        navigate('/profile');
+      }
+
+    } catch (err) {
+      console.error(err.message);
+      showAlert("Something went wrong. Please try again.", 'Lỗi');
+    }
+  }
+
+  const handlePayment = async () => {
+    const res = await fetch(Razorpay_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token
+      },
+      body: JSON.stringify({ amount: BusDetails.price * state.selectedSeats.length })
+    })
+    const data = await res.json()
+    const options = {
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      amount: data.amount,
+      currency: data.currency,
+      name: 'TripTix Booking',
+      description: 'Bus Ticket Booking',
+      order_id: data.id,
+      handler: function (response) {
+        showAlert('Payment successful!', 'Thành công');
+        navigate('/')
+        if (response.razorpay_payment_id) {
+          handleBooking()
+        }
+      },
+      modal: {
+        ondismiss: () => {
+          showAlert('Payment cancelled', 'Thông báo');
+          socket.emit('unlockSeats', { seatIds: state.selectedSeats })
+        }
+      },
+      theme: {
+        color: '#3399cc'
+      }
+    }
+    const rzp = new window.Razorpay(options)
+    rzp.open();
+  }
+  const departureTime = new Date(BusDetails.dep_time).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+
+  const arrivalTime = new Date(BusDetails.arrivalTime).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+
+  const getDuration = (depTime, arrTime) => {
+    const dep = new Date(depTime);
+    let arr = new Date(arrTime);
+
+    if (isNaN(dep) || isNaN(arr)) return '--';
+
+    // for overnight buses
+    if (arr < dep) arr.setDate(arr.getDate() + 1);
+
+    const diff = arr - dep;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    return `${hours}h ${minutes}m`;
+  }
+
+  const isFormValid = () => {
+    return passengerDetails.every(passenger =>
+      passenger.name.trim() !== '' &&
+      passenger.age &&
+      passenger.gender !== ''
+    );
+  };
+
+  const fadeInUp = {
+    hidden: { opacity: 0, y: 60 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
+  };
+  return (
+
+    <div className='bg-[#f5fefa] py-8 px-4 border-b border-b-gray-800'>
+      <div className='flex justify-between md:justify-normal md:mx-40'>
+        <p className='flex font-semibold cursor-pointer text-black hover:border rounded-lg border-transparent px-4 hover:bg-green-200' onClick={() => navigate('/available-seat')}>
+          <IoIosArrowRoundBack className='my-1 mx-2 text-xl' /> Back to Buses
+        </p>
+        <h1 className='flex flex-col font-bold text-2xl md:mx-16 text-black'>
+          Passenger Details <span className='text-lg font-medium text-gray-700'>Fill details for all passengers</span>
+        </h1>
+      </div>
+      <motion.div
+        variants={fadeInUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true }}
+      >
+
+        <div className='md:mx-40 md:flex md:gap-8'>
+          <div className='flex flex-col gap-6 md:w-2/3 my-2'>
+            {state?.selectedSeats?.map((seat, index) => (
+              <form key={seat} className="bg-white rounded-xl p-6 text-black shadow-lg">
+                <p className="font-semibold text-lg mb-4 flex items-center gap-2 text-black">
+                  <LuUser className="text-xl text-black" />
+                  Passenger {index + 1}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter full name"
+                      value={passengerDetails[index].name}
+                      onChange={(e) => {
+                        const updated = [...passengerDetails];
+                        updated[index].name = e.target.value;
+                        setPassengerDetails(updated);
+                      }}
+                      className="w-full px-4 py-2 rounded-md  border border-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Age *</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="Enter age"
+                      value={passengerDetails[index].age}
+                      onChange={(e) => {
+                        const updated = [...passengerDetails];
+                        updated[index].age = e.target.value;
+                        setPassengerDetails(updated);
+                      }}
+                      className="w-full px-4 py-2 rounded-md  border border-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Gender *</label>
+                    <select
+                      required
+                      value={passengerDetails[index].gender}
+                      onChange={(e) => {
+                        const updated = [...passengerDetails];
+                        updated[index].gender = e.target.value;
+                        setPassengerDetails(updated);
+                      }}
+                      className="w-full px-4 py-2 rounded-md  border border-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="" disabled>Select gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                </div>
+              </form>
+
+            ))}
+
+          </div>
+
+          <div className='bg-white rounded-lg p-6 shadow-lg mt-8 md:mt-0 md:w-1/3 h-fit sticky top-24'>
+            <h1 className='font-semibold text-2xl mb-4'>Booking Summary</h1>
+            <p className='text-lg font-semibold'>{`${BusDetails.operator || ''} - ${BusDetails.busType || ''}`}</p>
+
+            <p className='flex justify-between mt-2'>Departure <span className='font-bold'>{departureTime}</span></p>
+            <p className='flex justify-between'>Arrival <span className='font-bold'>{arrivalTime}</span></p>
+            <p className='flex justify-between'>Duration <span className='font-bold'>{getDuration(departureTime, arrivalTime)}</span></p>
+
+            <div className='border-b my-4 border-gray-200'></div>
+            <div className='border-b border-gray-300 my-4'></div>
+            <div>
+              <p className='flex justify-between my-2'>Base Fare ({state.selectedSeats.length}) <span>₹{BusDetails.price * state.selectedSeats.length}</span></p>
+              <p className='flex justify-between my-2 font-bold text-xl'>Total <span className='text-blue-700'>₹{BusDetails.price * state.selectedSeats.length}</span></p>
+            </div>
+
+            <button
+              className={`btn-primary w-full mt-4 cursor-pointer bg-[#23a983] rounded-lg px-4 py-2 text-white ${!isFormValid() ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'
+                }`}
+              onClick={handlePayment}
+              disabled={!isFormValid()}
+            >
+              Proceed to Payment
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+export default PassengerDetails;

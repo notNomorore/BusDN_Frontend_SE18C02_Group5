@@ -1,0 +1,12 @@
+export const Register_API = "/api/auth/register"
+export const Login_Api = "/api/auth/login"
+export const Profile_API = "/api/user/profile"
+export const Route_API = "/api/routes"
+export const Bus_API = "/api/routes/search"
+export const Seat_API = "/api/seat" // Might not be needed
+export const Socket_URL = "/"
+export const Booking_API = '/api/booking/book' // Might not be needed
+export const Razorpay_API = '/api/payment/create-order' // Might not be needed
+export const available_gif = "https://media.tenor.com/LkJeSUFuV7UAAAAi/wheels-on-the-bus.gif"
+export const busCard_image = "/assets/bus-image.jpg"
+export const Hero_image = "/assets/busHero2.jpg"
