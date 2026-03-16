@@ -184,7 +184,7 @@ const AdminPriorityProfiles = () => {
 
             {/* Action Modals */}
             {selectedProfile && actionType && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 text-black">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-black">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
                         <div className={`px-6 py-4 border-b flex justify-between items-center ${actionType === 'approve' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                             <h3 className={`font-bold text-lg ${actionType === 'approve' ? 'text-green-800' : 'text-red-800'}`}>

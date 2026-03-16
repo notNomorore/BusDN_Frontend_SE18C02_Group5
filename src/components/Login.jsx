@@ -36,20 +36,26 @@ const Login = ({ onClose }) => {
         setMessage(data.message);
         if (data.token) {
           localStorage.setItem('token', data.token);
-          login(data.token, data.user?.id, data.user?.role);
+          login(data.token, data.user?.id, data.user?.role, data.user?.isFirstLogin);
 
           if (onClose) onClose();
 
-          console.log("Login user info:", data.user);
-          console.log("Setting role to:", data.user?.role);
-
           setTimeout(() => {
-            console.log("Executing redirect logic. Current role:", data.user?.role);
-            if (data.user?.role === 'ADMIN' || data.user?.role === 'STAFF') {
-              console.log("Redirecting to /admin/dashboard via window.location.href");
+            const role = data.user?.role;
+            const firstLogin = data.user?.isFirstLogin;
+
+            // First login — force password change
+            if (firstLogin) {
+              window.location.href = '/create-password';
+              return;
+            }
+            if (role === 'ADMIN' || role === 'STAFF') {
               window.location.href = '/admin/dashboard';
+            } else if (role === 'DRIVER') {
+              window.location.href = '/driver/schedule';
+            } else if (role === 'CONDUCTOR') {
+              window.location.href = '/conductor/schedule';
             } else {
-              console.log("Redirecting to /profile via navigate");
               navigate('/profile');
             }
           }, 100);

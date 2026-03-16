@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
-import { FaBus, FaTachometerAlt, FaMapMarkedAlt, FaCalendarAlt, FaUsersCog, FaList, FaUserPlus, FaIdCard, FaChartLine, FaBoxOpen, FaBullhorn, FaDollarSign, FaClipboardList } from 'react-icons/fa';
+import { FaBus, FaTachometerAlt, FaMapMarkedAlt, FaCalendarAlt, FaUsersCog, FaList, FaUserPlus, FaIdCard, FaChartLine, FaBoxOpen, FaBullhorn, FaDollarSign, FaClipboardList, FaComments } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const AdminLayout = () => {
@@ -164,6 +164,17 @@ const AdminLayout = () => {
                             >
                                 <FaChartLine className="w-5 h-5" />
                                 <span>Báo cáo Doanh thu</span>
+                            </Link>
+                        </li>
+
+                        <li>
+                            <Link
+                                to="/admin/feedback"
+                                className={`flex items-center gap-3 px-6 py-3 transition-colors ${isActive('/admin/feedback') ? 'bg-[#495057] text-[#23a983] border-l-4 border-[#23a983]' : 'text-gray-300 hover:bg-[#495057] hover:text-white border-l-4 border-transparent'
+                                    }`}
+                            >
+                                <FaComments className="w-5 h-5" />
+                                <span>Phản hồi khách hàng</span>
                             </Link>
                         </li>
                     </ul>
