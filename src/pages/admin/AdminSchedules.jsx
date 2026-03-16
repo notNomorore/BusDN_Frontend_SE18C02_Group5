@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaCalendarAlt, FaPlus, FaFilter, FaBus, FaUser, FaClock, FaRoute, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaCalendarAlt, FaPlus, FaBus, FaEdit, FaTrash } from 'react-icons/fa';
 import api from '../../utils/api';
 import { useDialog } from '../../context/DialogContext';
 
@@ -8,6 +8,7 @@ const AdminSchedules = () => {
     const [schedules, setSchedules] = useState([]);
     const [buses, setBuses] = useState([]);
     const [drivers, setDrivers] = useState([]);
+    const [conductors, setConductors] = useState([]);
     const [routes, setRoutes] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -19,7 +20,8 @@ const AdminSchedules = () => {
         shiftStart: '',
         shiftEnd: '',
         busId: '',
-        driverId: ''
+        driverId: '',
+        conductorId: ''
     });
 
     useEffect(() => {
@@ -32,16 +34,18 @@ const AdminSchedules = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [schedRes, busRes, userRes, routeRes] = await Promise.all([
+            const [schedRes, busRes, driverRes, conductorRes, routeRes] = await Promise.all([
                 api.get('/api/admin/schedules'),
                 api.get('/api/admin/buses'),
                 api.get('/api/admin/users?role=DRIVER&limit=100'),
+                api.get('/api/admin/users?role=CONDUCTOR&limit=100'),
                 api.get('/api/admin/routes')
             ]);
 
             if (schedRes.data.ok) setSchedules(schedRes.data.schedules);
             if (busRes.data.ok) setBuses(busRes.data.buses);
-            if (userRes.data.ok) setDrivers(userRes.data.users);
+            if (driverRes.data.ok) setDrivers(driverRes.data.users);
+            if (conductorRes.data.ok) setConductors(conductorRes.data.users);
             if (routeRes.data.ok) setRoutes(routeRes.data.routes);
         } catch (err) {
             console.error('Error fetching schedules data:', err);
@@ -60,7 +64,8 @@ const AdminSchedules = () => {
                 shiftStart: item.shiftTime?.start || '',
                 shiftEnd: item.shiftTime?.end || '',
                 busId: item.busId?._id || '',
-                driverId: item.driverId?._id || ''
+                driverId: item.driverId?._id || '',
+                conductorId: item.conductorId?._id || ''
             });
         } else {
             setEditingId(null);
@@ -70,7 +75,8 @@ const AdminSchedules = () => {
                 shiftStart: '05:30',
                 shiftEnd: '13:30',
                 busId: '',
-                driverId: ''
+                driverId: '',
+                conductorId: ''
             });
         }
         setShowModal(true);
@@ -108,7 +114,7 @@ const AdminSchedules = () => {
                     showAlert('Chuyến xe đã bị hủy', 'Thành công');
                     fetchData();
                 }
-            } catch (err) {
+            } catch {
                 showAlert('Lỗi khi xóa lịch', 'Lỗi');
             }
         });
@@ -158,15 +164,16 @@ const AdminSchedules = () => {
                                 <th className="px-6 py-4 font-semibold">Tuyến</th>
                                 <th className="px-6 py-4 font-semibold">Xe (Biển số)</th>
                                 <th className="px-6 py-4 font-semibold">Tài xế chính</th>
+                                <th className="px-6 py-4 font-semibold">Phụ xe</th>
                                 <th className="px-6 py-4 font-semibold">Trạng thái</th>
                                 <th className="px-6 py-4 font-semibold text-center">Tác vụ</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-center">
                             {loading ? (
-                                <tr><td colSpan="6" className="py-10 text-gray-500">Đang tải dữ liệu...</td></tr>
+                                <tr><td colSpan="7" className="py-10 text-gray-500">Đang tải dữ liệu...</td></tr>
                             ) : schedules.length === 0 ? (
-                                <tr><td colSpan="6" className="py-10 text-gray-500">Chưa có lịch trình phân công nào</td></tr>
+                                <tr><td colSpan="7" className="py-10 text-gray-500">Chưa có lịch trình phân công nào</td></tr>
                             ) : (
                                 schedules.map((schedule) => {
                                     const st = getStatusStyle(schedule);
@@ -217,6 +224,28 @@ const AdminSchedules = () => {
                                                     </div>
                                                 )}
                                             </td>
+                                            <td className="px-6 py-4 text-left">
+                                                {schedule.conductorId ? (
+                                                    <div className="flex items-center gap-2 justify-center">
+                                                        <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                                                            <img
+                                                                src={schedule.conductorId.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(schedule.conductorId.fullName)}&background=random`}
+                                                                alt={schedule.conductorId.fullName}
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(schedule.conductorId.fullName)}&background=random`;
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-gray-800 text-sm font-medium">{schedule.conductorId.fullName}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center">
+                                                        <span className="text-orange-500 bg-orange-50 px-2 py-1 rounded font-medium text-xs">Phân công PX</span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-3 py-1 text-xs font-bold rounded-full border ${st.color}`}>
                                                     {st.text}
@@ -243,7 +272,7 @@ const AdminSchedules = () => {
 
             {/* Modal Phân công */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 text-black">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-black">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                             <h3 className="font-bold text-lg text-gray-800">{editingId ? 'Cập nhật phân công' : 'Tạo lịch chạy mới'}</h3>
@@ -302,7 +331,7 @@ const AdminSchedules = () => {
 
                                 <div className="border-t border-gray-100 pt-4 mt-2">
                                     <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2"><FaBus /> Phân công nhân sự & phương tiện (Tùy chọn)</h4>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">Xe buýt</label>
                                             <select
@@ -326,6 +355,19 @@ const AdminSchedules = () => {
                                                 <option value="">-- Chưa phân tài xế --</option>
                                                 {drivers.map(d => (
                                                     <option key={d._id} value={d._id}>{d.fullName}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Phụ xe</label>
+                                            <select
+                                                value={formData.conductorId}
+                                                onChange={e => setFormData({ ...formData, conductorId: e.target.value })}
+                                                className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            >
+                                                <option value="">-- Chưa phân phụ xe --</option>
+                                                {conductors.map(c => (
+                                                    <option key={c._id} value={c._id}>{c.fullName}</option>
                                                 ))}
                                             </select>
                                         </div>

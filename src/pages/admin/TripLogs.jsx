@@ -58,10 +58,15 @@ const TripLogs = () => {
     const totalPassengers = filtered.reduce((sum, s) => sum + (s.passengerCount || 0), 0);
 
     const getStatusBadge = (s) => {
+        // Priority: actual times logged by driver take precedence
+        if (s.actualEnd) return { color: 'bg-green-100 text-green-800', label: 'Hoàn thành' };
+        if (s.actualStart) return { color: 'bg-blue-100  text-blue-800', label: 'Đang chạy' };
+
+        // Fallback: use date vs today
         const today = new Date().toISOString().split('T')[0];
         const d = s.date ? s.date.substring(0, 10) : '';
         if (d < today) return { color: 'bg-green-100 text-green-800', label: 'Hoàn thành' };
-        if (d === today) return { color: 'bg-blue-100 text-blue-800', label: 'Đang chạy' };
+        if (d === today) return { color: 'bg-yellow-100 text-yellow-800', label: 'Chưa bắt đầu' };
         return { color: 'bg-gray-100 text-gray-600', label: 'Sắp tới' };
     };
 

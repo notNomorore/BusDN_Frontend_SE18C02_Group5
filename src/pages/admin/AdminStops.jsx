@@ -213,7 +213,7 @@ const AdminStops = () => {
 
             {/* CREATE / EDIT MODAL */}
             {modalConfig.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 text-black">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-black">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-lg text-gray-800">
