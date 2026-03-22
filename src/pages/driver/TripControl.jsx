@@ -48,14 +48,20 @@ const TripControl = () => {
     const handleStart = () => {
         showConfirm('Xác nhận bắt đầu chuyến đi? GPS sẽ được kích hoạt.', async () => {
             const now = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            if (todaySchedule) {
+                try {
+                    const res = await api.post('/api/driver/start-trip', { scheduleId: todaySchedule._id });
+                    if (!res.data?.ok) throw new Error('start_failed');
+                } catch (err) {
+                    console.error('Start trip error:', err);
+                    showAlert('Không thể bắt đầu chuyến. Vui lòng thử lại.', 'Lỗi');
+                    return;
+                }
+            }
             setStartTime(now);
             setTripState('started');
             localStorage.setItem('tripState', 'started');
             localStorage.setItem('tripStartTime', now);
-            if (todaySchedule) {
-                try { await api.patch(`/api/admin/schedules/${todaySchedule._id}/log`, { actualStart: now }); }
-                catch (err) { console.error('Start trip error:', err); }
-            }
             showAlert(`Chuyến đã bắt đầu lúc ${now}`, 'Thông báo');
         });
     };

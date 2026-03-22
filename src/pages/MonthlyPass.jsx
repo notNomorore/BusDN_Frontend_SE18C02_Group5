@@ -7,6 +7,7 @@ import Footer from '../components/Footer';
 import CircularProgress from '@mui/material/CircularProgress';
 import { motion } from "framer-motion";
 import { FaWallet, FaTicketAlt, FaInfoCircle } from "react-icons/fa";
+import { QRCodeSVG } from 'qrcode.react';
 
 const MonthlyPass = () => {
     const { token, user } = useContext(AuthContext);
@@ -22,6 +23,7 @@ const MonthlyPass = () => {
     });
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
+    const [lastPurchasedPass, setLastPurchasedPass] = useState(null);
 
     // Form State
     const [selectedRouteId, setSelectedRouteId] = useState('');
@@ -64,6 +66,7 @@ const MonthlyPass = () => {
 
         setError(null);
         setSuccess(null);
+        setLastPurchasedPass(null);
         setPurchasing(true);
 
         try {
@@ -75,11 +78,20 @@ const MonthlyPass = () => {
 
             if (res.data.ok) {
                 setSuccess(res.data.message);
+                setLastPurchasedPass(res.data.pass || null);
                 // Refresh data
+                const p = res.data.pass;
+                const enriched = p
+                    ? {
+                          ...p,
+                          displayRouteNumber: p.routeSnapshot?.routeNumber || '',
+                          displayRouteName: p.routeSnapshot?.name || 'Tuyến'
+                      }
+                    : null;
                 setData(prev => ({
                     ...prev,
                     walletBalance: res.data.newBalance,
-                    myPasses: [res.data.pass, ...prev.myPasses].slice(0, 20)
+                    myPasses: enriched ? [enriched, ...prev.myPasses].slice(0, 20) : prev.myPasses
                 }));
             } else {
                 setError(res.data.message || "Mua vé tháng thất bại.");
@@ -147,6 +159,22 @@ const MonthlyPass = () => {
                     {success && (
                         <div className="mb-6 bg-green-50 border-l-4 border-[#23a983] p-4 text-green-700 rounded shadow-sm">
                             <p>{success}</p>
+                            {lastPurchasedPass?._id && (
+                                <div className="mt-4 flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-green-200/80">
+                                    <QRCodeSVG
+                                        value={String(lastPurchasedPass._id)}
+                                        size={168}
+                                        level="M"
+                                        includeMargin
+                                        className="rounded-xl border-2 border-white shadow bg-white p-2"
+                                    />
+                                    <div className="text-sm text-gray-700 text-center sm:text-left">
+                                        <p className="font-semibold text-gray-800">QR vé tháng</p>
+                                        <p className="mt-1">Đưa mã này cho phụ xe quét khi lên xe — chỉ còn hạn mới quét hợp lệ.</p>
+                                        <p className="font-mono text-xs mt-2 text-gray-600">Mã thẻ: {lastPurchasedPass.passCode}</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -180,6 +208,7 @@ const MonthlyPass = () => {
                                     <li>Chọn tháng / năm cần mua</li>
                                     <li>Hệ thống sẽ trừ tiền trực tiếp từ ví BusDN</li>
                                     <li>Không thể mua lại cùng tuyến nếu đã đăng ký trước đó</li>
+                                    <li>Sau khi mua, dùng <strong>mã QR vé tháng</strong> — phụ xe quét để kiểm tra còn trong thời hạn</li>
                                 </ul>
                             </div>
                         </div>
@@ -342,8 +371,38 @@ const MonthlyPass = () => {
                                                 {data.myPasses.map((pass) => (
                                                     <tr key={pass._id} className="hover:bg-gray-50 transition-colors">
                                                         <td className="p-3 font-mono text-sm text-gray-700">{pass.passCode}</td>
+                                                        <td className="p-3 hidden sm:table-cell align-middle">
+                                                            {pass.status === 'ACTIVE' && pass._id ? (
+                                                                <div className="inline-flex flex-col items-center gap-1">
+                                                                    <QRCodeSVG
+                                                                        value={String(pass._id)}
+                                                                        size={88}
+                                                                        level="M"
+                                                                        includeMargin
+                                                                        className="rounded-lg border border-gray-200 bg-white p-1"
+                                                                    />
+                                                                    <span className="text-[10px] text-gray-500 max-w-[96px] text-center leading-tight">
+                                                                        Phụ xe quét
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-xs">—</span>
+                                                            )}
+                                                        </td>
                                                         <td className="p-3">
                                                             <div className="font-semibold text-gray-800">{pass.displayRouteNumber ? `${pass.displayRouteNumber} - ${pass.displayRouteName}` : pass.displayRouteName}</div>
+                                                            {pass.status === 'ACTIVE' && pass._id && (
+                                                                <div className="sm:hidden mt-3 flex flex-col items-start gap-1">
+                                                                    <QRCodeSVG
+                                                                        value={String(pass._id)}
+                                                                        size={120}
+                                                                        level="M"
+                                                                        includeMargin
+                                                                        className="rounded-lg border border-gray-200 bg-white p-1"
+                                                                    />
+                                                                    <span className="text-xs text-gray-500">Đưa QR cho phụ xe quét khi lên xe</span>
+                                                                </div>
+                                                            )}
                                                         </td>
                                                         <td className="p-3">
                                                             <div className="font-semibold text-gray-800">{String(pass.month).padStart(2, '0')}/{pass.year}</div>
