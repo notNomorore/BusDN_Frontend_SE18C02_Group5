@@ -1,26 +1,43 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { FaCalendarAlt, FaBus, FaUser, FaClock, FaRoute } from 'react-icons/fa';
+import { io } from 'socket.io-client';
+import { FaCalendarAlt, FaBus, FaClock, FaRoute } from 'react-icons/fa';
 import api from '../../utils/api';
 import AuthContext from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
 
 const ViewSchedule = () => {
-    const { userId } = useContext(AuthContext);
+    const { token, userRole } = useContext(AuthContext);
+    const scheduleUrl = userRole === 'CONDUCTOR' ? '/api/conductor/schedule' : '/api/driver/schedule';
     const { showAlert } = useDialog();
     const [schedules, setSchedules] = useState([]);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState('today'); // today | week
 
-    useEffect(() => { fetchSchedule(); }, []);
-
     const fetchSchedule = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/api/driver/schedule');
+            const res = await api.get(scheduleUrl);
             if (res.data.ok) setSchedules(res.data.schedules);
         } catch { showAlert('Lỗi tải lịch phân công', 'Lỗi'); }
         finally { setLoading(false); }
     };
+
+    useEffect(() => { fetchSchedule(); }, [scheduleUrl]);
+
+    useEffect(() => {
+        const socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'] });
+        if (token) socket.emit('auth:join', { token });
+        const onChange = () => {
+            api.get(scheduleUrl).then((res) => {
+                if (res.data?.ok) setSchedules(res.data.schedules);
+            }).catch(() => {});
+        };
+        socket.on('schedule:changed', onChange);
+        return () => {
+            socket.off('schedule:changed', onChange);
+            socket.disconnect();
+        };
+    }, [token, scheduleUrl]);
 
     const today = new Date().toISOString().split('T')[0];
     const displayed = view === 'today'

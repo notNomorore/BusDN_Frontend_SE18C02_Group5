@@ -12,6 +12,7 @@ import Profile from './pages/Profile'
 import RouteDetails from './pages/RouteDetails'
 import ForgotPassword from './pages/ForgotPassword'
 import MonthlyPass from './pages/MonthlyPass'
+import BuyTripTicket from './pages/BuyTripTicket'
 import CreatePassword from './pages/CreatePassword'
 import FirstLoginProfile from './pages/FirstLoginProfile'
 import AdminLayout from './pages/admin/AdminLayout'
@@ -131,6 +132,7 @@ function AppContent() {
                     <Route path='/route-details/:id' element={<RouteDetails />} />
                     <Route path='/forgot-password' element={<ForgotPassword />} />
                     <Route path='/monthly-pass' element={<MonthlyPass />} />
+                    <Route path='/trip-ticket' element={<BuyTripTicket />} />
                   </Routes>
                 </main>
                 <Footer />

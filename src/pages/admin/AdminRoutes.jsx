@@ -19,7 +19,8 @@ const AdminRoutes = () => {
 
     // Form state
     const [formData, setFormData] = useState({
-        routeNumber: '', name: '', distance: '', startTime: '', endTime: '', status: 'ACTIVE', monthlyPassPrice: 200000, description: ''
+        routeNumber: '', name: '', distance: '', startTime: '', endTime: '', status: 'ACTIVE', monthlyPassPrice: 200000, description: '',
+        frequencyMinutes: 15, roundTripMinutes: 60, bufferMinutes: 10,
     });
     const [processing, setProcessing] = useState(false);
 
@@ -49,7 +50,10 @@ const AdminRoutes = () => {
     const openModal = (type, route = null) => {
         setModalConfig({ isOpen: true, type, route });
         if (type === 'create') {
-            setFormData({ routeNumber: '', name: '', distance: '', startTime: '', endTime: '', status: 'ACTIVE', monthlyPassPrice: 200000, description: '' });
+            setFormData({
+                routeNumber: '', name: '', distance: '', startTime: '', endTime: '', status: 'ACTIVE', monthlyPassPrice: 200000, description: '',
+                frequencyMinutes: 15, roundTripMinutes: 60, bufferMinutes: 10,
+            });
         } else if (type === 'edit' && route) {
             setFormData({
                 routeNumber: route.routeNumber,
@@ -59,7 +63,10 @@ const AdminRoutes = () => {
                 endTime: route.operationTime?.end || '',
                 status: route.status,
                 monthlyPassPrice: route.monthlyPassPrice,
-                description: route.description || ''
+                description: route.description || '',
+                frequencyMinutes: route.frequencyMinutes ?? 15,
+                roundTripMinutes: route.roundTripMinutes ?? 60,
+                bufferMinutes: route.bufferMinutes ?? 10,
             });
         }
     };
@@ -245,6 +252,7 @@ const AdminRoutes = () => {
                                     <div><span className="text-gray-500 text-sm block">Cự ly</span><p className="font-medium">{modalConfig.route?.distance} km</p></div>
                                     <div><span className="text-gray-500 text-sm block">Giá vé tháng</span><p className="font-medium text-[#23a983]">{Number(modalConfig.route?.monthlyPassPrice).toLocaleString()} đ</p></div>
                                     <div><span className="text-gray-500 text-sm block">Giờ hoạt động</span><p className="font-medium">{modalConfig.route?.operationTime?.start || '-'} đến {modalConfig.route?.operationTime?.end || '-'}</p></div>
+                                    <div><span className="text-gray-500 text-sm block">Tần suất / vòng / buffer</span><p className="font-medium">{modalConfig.route?.frequencyMinutes ?? 15} phút · {modalConfig.route?.roundTripMinutes ?? 60} phút · {modalConfig.route?.bufferMinutes ?? 10} phút</p></div>
                                     <div>
                                         <span className="text-gray-500 text-sm block">Trạng thái</span>
                                         <span className={`px-2 py-0.5 mt-1 block w-max text-xs font-bold rounded ${modalConfig.route?.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -282,6 +290,20 @@ const AdminRoutes = () => {
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-1">Giờ kết thúc</label>
                                             <input type="time" value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tần suất (phút/chuyến)</label>
+                                            <input type="number" min="1" value={formData.frequencyMinutes} onChange={e => setFormData({ ...formData, frequencyMinutes: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Vòng tuyến (phút)</label>
+                                            <input type="number" min="1" value={formData.roundTripMinutes} onChange={e => setFormData({ ...formData, roundTripMinutes: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Buffer nghỉ (phút)</label>
+                                            <input type="number" min="0" value={formData.bufferMinutes} onChange={e => setFormData({ ...formData, bufferMinutes: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
                                         </div>
                                     </div>
 
