@@ -1,3 +1,27 @@
 @import "tailwindcss";
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
+@layer components {
+  .admin-shell {
+    @apply min-h-screen bg-[#eef2f6] text-gray-800 font-sans;
+  }
+
+  .admin-page-head {
+    @apply flex flex-col gap-4 md:flex-row md:items-center md:justify-between;
+  }
+
+  .admin-toolbar {
+    @apply rounded-2xl bg-white p-5;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .admin-surface {
+    @apply rounded-2xl bg-white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .admin-sidebar-scroll {
+    overflow-y: auto;
+  }
+}
+

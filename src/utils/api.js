@@ -12,9 +12,9 @@ const api = axios.create({
 // Add a request interceptor to inject the token if we use JWT instead of sessions
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('authorization') || localStorage.getItem('token');
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            config.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         }
         return config;
     },

@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef } from 'react'
 import './App.css'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Header from './components/Header'
 import Home from './pages/Home'
 import Footer from './components/Footer'
@@ -14,6 +14,8 @@ import ForgotPassword from './pages/ForgotPassword'
 import MonthlyPass from './pages/MonthlyPass'
 import CreatePassword from './pages/CreatePassword'
 import FirstLoginProfile from './pages/FirstLoginProfile'
+import ActivateAccount from './pages/ActivateAccount'
+import ImportStaff from './pages/ImportStaff'
 import AdminLayout from './pages/admin/AdminLayout'
 import Dashboard from './pages/admin/Dashboard'
 import AdminUsers from './pages/admin/AdminUsers'
@@ -22,6 +24,8 @@ import AdminRoutes from './pages/admin/AdminRoutes'
 import AdminStops from './pages/admin/AdminStops'
 import AdminSchedules from './pages/admin/AdminSchedules'
 import FleetStatus from './pages/admin/FleetStatus'
+import AddVehicle from './pages/admin/AddVehicle'
+import UpdateVehicle from './pages/admin/UpdateVehicle'
 import TripLogs from './pages/admin/TripLogs'
 import LostAndFound from './pages/admin/LostAndFound'
 import BroadcastNotification from './pages/admin/BroadcastNotification'
@@ -35,6 +39,7 @@ import ReportIncident from './pages/driver/ReportIncident'
 import ConfirmHandover from './pages/driver/ConfirmHandover'
 import ValidateQR from './pages/driver/ValidateQR'
 import ReportFullLoad from './pages/driver/ReportFullLoad'
+import RateTripPage from './pages/RateTripPage'
 import BusProvider from './context/BusProvider'
 import ChatBot from './components/ChatBot'
 import { DialogProvider, useDialog } from './context/DialogContext'
@@ -84,16 +89,21 @@ function AppContent() {
         <Routes>
           <Route path="/create-password" element={<CreatePassword />} />
           <Route path="/first-login/profile" element={<FirstLoginProfile />} />
+          <Route path="/activate-account" element={<ActivateAccount />} />
+          <Route path="/staff/import" element={<Navigate to="/admin/staff/import" replace />} />
 
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="staff" element={<AdminUsers />} />
             <Route path="staff/create" element={<AdminUsers />} />
+            <Route path="staff/import" element={<ImportStaff />} />
             <Route path="priority-profiles" element={<AdminPriorityProfiles />} />
             <Route path="routes" element={<AdminRoutes />} />
             <Route path="stops" element={<AdminStops />} />
             <Route path="schedules" element={<AdminSchedules />} />
             <Route path="fleet-status" element={<FleetStatus />} />
+            <Route path="vehicles/new" element={<AddVehicle />} />
+            <Route path="vehicles/:id/edit" element={<UpdateVehicle />} />
             <Route path="trip-logs" element={<TripLogs />} />
             <Route path="lost-and-found" element={<LostAndFound />} />
             <Route path="broadcast" element={<BroadcastNotification />} />
@@ -131,6 +141,7 @@ function AppContent() {
                     <Route path='/route-details/:id' element={<RouteDetails />} />
                     <Route path='/forgot-password' element={<ForgotPassword />} />
                     <Route path='/monthly-pass' element={<MonthlyPass />} />
+                    <Route path='/rate-trip/:tripId' element={<RateTripPage />} />
                   </Routes>
                 </main>
                 <Footer />

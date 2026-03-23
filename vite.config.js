@@ -20,6 +20,26 @@ export default defineConfig(({ mode }) => {
           target: API_URL,
           changeOrigin: true,
         },
+        '/register-step1': {
+          target: API_URL,
+          changeOrigin: true,
+        },
+        '/register-step2': {
+          target: API_URL,
+          changeOrigin: true,
+        },
+        '/verify-otp': {
+          target: API_URL,
+          changeOrigin: true,
+        },
+        '/create-password': {
+          target: API_URL,
+          changeOrigin: true,
+        },
+        '/resend-otp': {
+          target: API_URL,
+          changeOrigin: true,
+        },
         '/socket.io': {
           target: API_URL,
           ws: true,
