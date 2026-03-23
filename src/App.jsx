@@ -21,6 +21,7 @@ import Dashboard from './pages/admin/Dashboard'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminPriorityProfiles from './pages/admin/AdminPriorityProfiles'
 import AdminRoutes from './pages/admin/AdminRoutes'
+import RouteForm from './pages/admin/RouteForm'
 import AdminStops from './pages/admin/AdminStops'
 import AdminSchedules from './pages/admin/AdminSchedules'
 import FleetStatus from './pages/admin/FleetStatus'
@@ -99,6 +100,8 @@ function AppContent() {
             <Route path="staff/import" element={<ImportStaff />} />
             <Route path="priority-profiles" element={<AdminPriorityProfiles />} />
             <Route path="routes" element={<AdminRoutes />} />
+            <Route path="routes/create" element={<RouteForm />} />
+            <Route path="routes/:id/edit" element={<RouteForm />} />
             <Route path="stops" element={<AdminStops />} />
             <Route path="schedules" element={<AdminSchedules />} />
             <Route path="fleet-status" element={<FleetStatus />} />

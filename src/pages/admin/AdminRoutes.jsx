@@ -1,33 +1,195 @@
-import React, { useState, useEffect, useContext } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaRoute, FaPlus, FaSearch, FaEye, FaEdit, FaBan, FaUndo } from 'react-icons/fa'
+import {
+  FaBan,
+  FaEdit,
+  FaEye,
+  FaMapMarkedAlt,
+  FaMapMarkerAlt,
+  FaPlus,
+  FaSearch,
+  FaUndo,
+} from 'react-icons/fa'
 import api from '../../utils/api'
-import { useDialog } from '../../context/DialogContext'
 import AuthContext from '../../context/AuthContext'
+import { useDialog } from '../../context/DialogContext'
+
+const STATUS_META = {
+  DRAFT: { label: 'DRAFT', chip: 'bg-slate-100 text-slate-700', tile: 'bg-slate-500' },
+  PENDING_REVIEW: { label: 'PENDING REVIEW', chip: 'bg-amber-100 text-amber-700', tile: 'bg-amber-500' },
+  APPROVED: { label: 'APPROVED', chip: 'bg-sky-100 text-sky-700', tile: 'bg-sky-500' },
+  SCHEDULED: { label: 'SCHEDULED', chip: 'bg-indigo-100 text-indigo-700', tile: 'bg-indigo-500' },
+  ACTIVE: { label: 'ACTIVE', chip: 'bg-emerald-100 text-emerald-700', tile: 'bg-[#23a983]' },
+  REJECTED: { label: 'REJECTED', chip: 'bg-rose-100 text-rose-700', tile: 'bg-rose-500' },
+  SUSPENDED: { label: 'SUSPENDED', chip: 'bg-gray-200 text-gray-700', tile: 'bg-gray-500' },
+  INACTIVE: { label: 'INACTIVE', chip: 'bg-gray-100 text-gray-600', tile: 'bg-gray-400' },
+}
+
+const ROUTE_STATUSES = Object.keys(STATUS_META)
 
 const modalShadow = 'shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
 
+const getStatusMeta = (status) => STATUS_META[status] || STATUS_META.DRAFT
+
+const formatMoney = (value) => `${Number(value || 0).toLocaleString('vi-VN')} d`
+
+const formatOperationTime = (operationTime) => {
+  if (!operationTime) return '-'
+  if (typeof operationTime === 'string') return operationTime
+  const start = operationTime.start || ''
+  const end = operationTime.end || ''
+  return start && end ? `${start} - ${end}` : '-'
+}
+
+const stopLabel = (stop) => {
+  if (!stop) return 'Chua xac dinh'
+  return stop.isTerminal ? `${stop.name} (Dau/cuoi)` : stop.name
+}
+
+const summarizeStops = (stops = []) => {
+  if (!stops.length) return 'Chua co tram'
+  return stops.slice(0, 3).map((stop) => stop.name).join(' -> ') + (stops.length > 3 ? ' ...' : '')
+}
+
+const RouteViewModal = ({ route, onClose }) => {
+  if (!route) return null
+  const statusMeta = getStatusMeta(route.status)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 text-black">
+      <div className={`flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white ${modalShadow}`}>
+        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-gray-400">Route Detail</p>
+            <h3 className="mt-2 text-2xl font-bold text-gray-900">
+              {route.routeNumber} - {route.name || 'Tuyen chua dat ten'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">Xem nhanh metadata, diem dau/cuoi va cau hinh hanh trinh.</p>
+          </div>
+          <button onClick={onClose} className="text-2xl font-bold text-gray-400 transition hover:text-gray-600">
+            &times;
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-6">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            <section className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Diem dau</p>
+                  <p className="mt-2 font-bold text-gray-900">{stopLabel(route.startStop)}</p>
+                  <p className="mt-1 text-sm text-gray-500">{route.startStop?.address || 'Khong co dia chi'}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Diem cuoi</p>
+                  <p className="mt-2 font-bold text-gray-900">{stopLabel(route.endStop)}</p>
+                  <p className="mt-1 text-sm text-gray-500">{route.endStop?.address || 'Khong co dia chi'}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusMeta.chip}`}>{statusMeta.label}</span>
+                  <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-xs font-bold text-[#23a983]">{formatMoney(route.monthlyPassPrice)}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                    {route.stopCount || 0} tram chieu di
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Route type</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">{route.routeType || 'Chua cau hinh'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Service type</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">{route.serviceType || 'Chua cau hinh'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Operation time</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">{formatOperationTime(route.operationTime)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Tan suat / Hanh trinh / Quay dau</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">
+                      {(route.operationSettings?.tripInterval ?? route.frequencyMinutes ?? '--')} / {(route.operationSettings?.estimatedRouteDuration ?? route.roundTripMinutes ?? '--')} / {(route.operationSettings?.turnaroundTime ?? route.bufferMinutes ?? '--')} phut
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Mo ta</p>
+                <p className="mt-3 text-sm leading-7 text-gray-600">{route.description || 'Chua co mo ta cho tuyen nay.'}</p>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chieu di</p>
+                    <p className="mt-1 text-sm text-gray-500">So tram: {route.outboundStops?.length || 0}</p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {(route.outboundStops || []).length === 0 ? (
+                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chua co du lieu chieu di.</p>
+                  ) : (
+                    route.outboundStops.map((stop, index) => (
+                      <div key={`${stop.stopRefId || stop.id}-${index}`} className="rounded-2xl border border-gray-100 bg-[#f8fafc] px-4 py-3">
+                        <p className="text-sm font-bold text-gray-900">{index + 1}. {stop.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Khong co dia chi'}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chieu ve</p>
+                <p className="mt-1 text-sm text-gray-500">So tram: {route.inboundStops?.length || 0}</p>
+                <div className="mt-4 space-y-3">
+                  {(route.inboundStops || []).length === 0 ? (
+                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chua co du lieu chieu ve.</p>
+                  ) : (
+                    route.inboundStops.map((stop, index) => (
+                      <div key={`${stop.stopRefId || stop.id}-${index}`} className="rounded-2xl border border-gray-100 bg-[#f8fafc] px-4 py-3">
+                        <p className="text-sm font-bold text-gray-900">{index + 1}. {stop.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Khong co dia chi'}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-gray-100 px-6 py-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl bg-[#f3f5f8] px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-200"
+          >
+            Dong
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const AdminRoutes = () => {
-  const [routes, setRoutes] = useState([])
+  const { token } = useContext(AuthContext)
   const { showAlert, showConfirm } = useDialog()
+  const navigate = useNavigate()
+
+  const [routes, setRoutes] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const { token } = useContext(AuthContext)
-  const navigate = useNavigate()
-
-  const [modalConfig, setModalConfig] = useState({ isOpen: false, type: null, route: null })
-  const [formData, setFormData] = useState({
-    routeNumber: '',
-    name: '',
-    distance: '',
-    startTime: '',
-    endTime: '',
-    status: 'ACTIVE',
-    monthlyPassPrice: 200000,
-    description: '',
-  })
-  const [processing, setProcessing] = useState(false)
+  const [selectedRoute, setSelectedRoute] = useState(null)
 
   useEffect(() => {
     fetchRoutes()
@@ -36,12 +198,15 @@ const AdminRoutes = () => {
   const fetchRoutes = async () => {
     try {
       setLoading(true)
-      const res = await api.get(`/api/admin/routes?status=${statusFilter}&q=${search}`)
-      if (res.data.ok) {
-        setRoutes(res.data.routes)
-      }
-    } catch (err) {
-      console.error('Error fetching routes:', err)
+      const params = new URLSearchParams()
+      if (search.trim()) params.set('q', search.trim())
+      if (statusFilter) params.set('status', statusFilter)
+      const query = params.toString()
+      const res = await api.get(`/api/admin/routes${query ? `?${query}` : ''}`)
+      if (res.data.ok) setRoutes(res.data.routes || [])
+    } catch (error) {
+      console.error('Error fetching routes:', error)
+      showAlert(error.response?.data?.message || 'Khong the tai danh sach tuyen', 'Loi')
     } finally {
       setLoading(false)
     }
@@ -52,58 +217,7 @@ const AdminRoutes = () => {
     fetchRoutes()
   }
 
-  const openModal = (type, route = null) => {
-    setModalConfig({ isOpen: true, type, route })
-    if (type === 'create') {
-      setFormData({
-        routeNumber: '',
-        name: '',
-        distance: '',
-        startTime: '',
-        endTime: '',
-        status: 'ACTIVE',
-        monthlyPassPrice: 200000,
-        description: '',
-      })
-    } else if (type === 'edit' && route) {
-      setFormData({
-        routeNumber: route.routeNumber,
-        name: route.name,
-        distance: route.distance,
-        startTime: route.operationTime?.start || '',
-        endTime: route.operationTime?.end || '',
-        status: route.status,
-        monthlyPassPrice: route.monthlyPassPrice,
-        description: route.description || '',
-      })
-    }
-  }
-
-  const closeModal = () => {
-    setModalConfig({ isOpen: false, type: null, route: null })
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    setProcessing(true)
-    try {
-      if (modalConfig.type === 'create') {
-        await api.post('/api/admin/routes/create', formData)
-        showAlert('Tao tuyen thanh cong')
-      } else if (modalConfig.type === 'edit') {
-        await api.put(`/api/admin/routes/${modalConfig.route._id}`, formData)
-        showAlert('Cap nhat tuyen thanh cong')
-      }
-      closeModal()
-      fetchRoutes()
-    } catch (err) {
-      showAlert(err.response?.data?.message || 'Co loi xay ra', 'Loi')
-    } finally {
-      setProcessing(false)
-    }
-  }
-
-  const toggleStatus = async (route) => {
+  const handleToggleStatus = (route) => {
     const actionText = route.status === 'ACTIVE' ? 'tam ngung' : 'kich hoat lai'
     showConfirm(`Ban co chac muon ${actionText} tuyen ${route.routeNumber}?`, async () => {
       try {
@@ -112,9 +226,10 @@ const AdminRoutes = () => {
           setRoutes((current) => current.map((item) => (
             item._id === route._id ? { ...item, status: res.data.status } : item
           )))
+          showAlert(res.data.message || 'Cap nhat trang thai thanh cong', 'Thanh cong')
         }
-      } catch (err) {
-        showAlert('Loi cap nhat trang thai', 'Loi')
+      } catch (error) {
+        showAlert(error.response?.data?.message || 'Khong the cap nhat trang thai tuyen', 'Loi')
       }
     })
   }
@@ -122,236 +237,209 @@ const AdminRoutes = () => {
   if (!token) return null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-black">
       <div className="admin-page-head">
         <div>
-          <h1 className="flex items-center gap-3 text-3xl font-bold text-gray-800">
-            <FaRoute className="text-[#23a983]" />
+          <h1 className="flex items-center gap-3 text-3xl font-bold text-gray-900">
+            <FaMapMarkedAlt className="text-[#23a983]" />
             Quan ly tuyen xe
           </h1>
-          <p className="mt-1 text-sm text-gray-500">Quan ly mang luoi va thong tin chi tiet cac tuyen.</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Dong bo workflow route, diem dau/cuoi, hanh trinh hai chieu va metadata van hanh.
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => navigate('/admin/stops')}
-            className="rounded-xl bg-white px-4 py-2.5 font-semibold text-cyan-700 transition hover:bg-cyan-50"
+            className="rounded-2xl bg-white px-4 py-2.5 font-semibold text-cyan-700 transition hover:bg-cyan-50"
             style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
           >
             Quan ly tram dung
           </button>
           <button
-            onClick={() => openModal('create')}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#23a983] px-4 py-2.5 font-semibold text-white transition hover:bg-[#1bbd8f]"
+            onClick={() => navigate('/admin/routes/create')}
+            className="inline-flex items-center gap-2 rounded-2xl bg-[#23a983] px-4 py-2.5 font-semibold text-white transition hover:bg-[#1bbd8f]"
           >
             <FaPlus />
-            Them tuyen
+            Tao tuyen moi
           </button>
         </div>
       </div>
 
-      <div className="admin-toolbar text-black">
-        <form onSubmit={handleSearch} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_auto]">
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-gray-700">Tim tuyen</label>
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Ma tuyen, ten tuyen..."
-              className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-4 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-gray-700">Trang thai</label>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-4 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white"
-            >
-              <option value="">Tat ca</option>
-              <option value="ACTIVE">Dang hoat dong</option>
-              <option value="INACTIVE">Tam ngung</option>
-            </select>
-          </div>
-          <div className="flex items-end">
-            <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 font-semibold text-white transition hover:bg-gray-800">
-              <FaSearch />
-              Loc
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="admin-surface overflow-hidden text-black">
-        <div className="flex items-center justify-between px-6 pt-6">
-          <div>
-            <h2 className="text-lg font-bold text-gray-800">Danh sach tuyen</h2>
-            <p className="mt-1 text-sm text-gray-500">Thong tin van hanh, khoang cach va gia ve thang.</p>
-          </div>
-          {loading ? <span className="text-sm text-gray-500">Dang tai...</span> : null}
-        </div>
-
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="text-xs uppercase tracking-[0.18em] text-gray-400">
-                <th className="px-6 py-3 font-semibold">Tuyen</th>
-                <th className="px-6 py-3 font-semibold">Cu ly</th>
-                <th className="px-6 py-3 font-semibold">Gio HD</th>
-                <th className="px-6 py-3 font-semibold">Ve thang</th>
-                <th className="px-6 py-3 font-semibold">Trang thai</th>
-                <th className="px-6 py-3 text-right font-semibold">Thao tac</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {routes.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">Chua co tuyen nao.</td>
-                </tr>
-              ) : (
-                routes.map((route) => (
-                  <tr key={route._id} className="transition-colors hover:bg-[#fbfcfd]">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <span className={`rounded-lg px-3 py-1.5 text-sm font-bold text-white ${route.status === 'ACTIVE' ? 'bg-[#23a983]' : 'bg-gray-400'}`}>
-                          {route.routeNumber}
-                        </span>
-                        <div>
-                          <p className="text-sm font-bold text-gray-800">{route.name}</p>
-                          <p className="max-w-[220px] truncate text-xs text-gray-500">{route.description || 'Khong co mo ta'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">{route.distance} km</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {route.operationTime?.start && route.operationTime?.end
-                        ? `${route.operationTime.start} - ${route.operationTime.end}`
-                        : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-[#23a983]">
-                      {Number(route.monthlyPassPrice).toLocaleString('vi-VN')} d
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${route.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {route.status === 'ACTIVE' ? 'HOAT DONG' : 'TAM NGUNG'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => openModal('view', route)} className="rounded-lg p-2 text-blue-600 transition hover:bg-blue-50">
-                          <FaEye />
-                        </button>
-                        <button onClick={() => openModal('edit', route)} className="rounded-lg p-2 text-indigo-600 transition hover:bg-indigo-50">
-                          <FaEdit />
-                        </button>
-                        <button onClick={() => toggleStatus(route)} className={`rounded-lg p-2 transition ${route.status === 'ACTIVE' ? 'text-red-500 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                          {route.status === 'ACTIVE' ? <FaBan title="Tam ngung" /> : <FaUndo title="Kich hoat lai" />}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {modalConfig.isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 text-black">
-          <div className={`flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white ${modalShadow}`}>
-            <div className="flex items-start justify-between px-6 pt-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6">
+          <div className="admin-toolbar">
+            <form onSubmit={handleSearch} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px_auto]">
               <div>
-                <h3 className="text-xl font-bold text-gray-800">
-                  {modalConfig.type === 'create' && 'Them tuyen moi'}
-                  {modalConfig.type === 'edit' && `Sua tuyen ${modalConfig.route?.routeNumber}`}
-                  {modalConfig.type === 'view' && `Chi tiet tuyen ${modalConfig.route?.routeNumber}`}
-                </h3>
-                <p className="mt-1 text-sm text-gray-500">Cap nhat cau hinh va thong tin van hanh.</p>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Tim tuyen</label>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Ma tuyen, ten tuyen, mo ta..."
+                  className="w-full rounded-2xl border border-gray-200 bg-[#f8fafc] px-4 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white"
+                />
               </div>
-              <button onClick={closeModal} className="text-xl font-bold text-gray-400 transition hover:text-gray-600">&times;</button>
-            </div>
-
-            <div className="overflow-y-auto p-6">
-              {modalConfig.type === 'view' ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div><span className="block text-sm text-gray-500">Ma tuyen</span><p className="font-medium">{modalConfig.route?.routeNumber}</p></div>
-                  <div><span className="block text-sm text-gray-500">Ten tuyen</span><p className="font-medium">{modalConfig.route?.name}</p></div>
-                  <div><span className="block text-sm text-gray-500">Cu ly</span><p className="font-medium">{modalConfig.route?.distance} km</p></div>
-                  <div><span className="block text-sm text-gray-500">Ve thang</span><p className="font-medium text-[#23a983]">{Number(modalConfig.route?.monthlyPassPrice).toLocaleString('vi-VN')} d</p></div>
-                  <div><span className="block text-sm text-gray-500">Gio hoat dong</span><p className="font-medium">{modalConfig.route?.operationTime?.start || '-'} den {modalConfig.route?.operationTime?.end || '-'}</p></div>
-                  <div>
-                    <span className="block text-sm text-gray-500">Trang thai</span>
-                    <span className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-bold ${modalConfig.route?.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {modalConfig.route?.status}
-                    </span>
-                  </div>
-                  <div className="md:col-span-2">
-                    <span className="block text-sm text-gray-500">Mo ta</span>
-                    <p className="mt-1 rounded-xl bg-[#f8fafc] p-4 text-sm">{modalConfig.route?.description || 'Khong co mo ta'}</p>
-                  </div>
-                </div>
-              ) : (
-                <form id="routeForm" onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Ma tuyen *</label>
-                      <input type="text" required value={formData.routeNumber} onChange={(event) => setFormData({ ...formData, routeNumber: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" placeholder="VD: R01" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Ten tuyen *</label>
-                      <input type="text" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" placeholder="Ben xe - Trung tam" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Cu ly (km) *</label>
-                      <input type="number" step="0.1" required value={formData.distance} onChange={(event) => setFormData({ ...formData, distance: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Ve thang</label>
-                      <input type="number" step="1000" value={formData.monthlyPassPrice} onChange={(event) => setFormData({ ...formData, monthlyPassPrice: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Gio bat dau</label>
-                      <input type="time" value={formData.startTime} onChange={(event) => setFormData({ ...formData, startTime: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Gio ket thuc</label>
-                      <input type="time" value={formData.endTime} onChange={(event) => setFormData({ ...formData, endTime: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Trang thai</label>
-                      <select value={formData.status} onChange={(event) => setFormData({ ...formData, status: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white">
-                        <option value="ACTIVE">Dang hoat dong</option>
-                        <option value="INACTIVE">Tam ngung</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-semibold text-gray-700">Mo ta</label>
-                      <textarea rows="3" value={formData.description} onChange={(event) => setFormData({ ...formData, description: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white" />
-                    </div>
-                  </div>
-                </form>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 px-6 pb-6">
-              <button type="button" onClick={closeModal} className="rounded-xl bg-[#f3f5f8] px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-200">
-                Dong
-              </button>
-              {modalConfig.type !== 'view' ? (
-                <button type="submit" form="routeForm" disabled={processing} className="rounded-xl bg-[#23a983] px-5 py-2.5 font-semibold text-white transition hover:bg-[#1bbd8f] disabled:opacity-50">
-                  {processing ? 'Dang luu...' : 'Luu lai'}
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Trang thai</label>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-[#f8fafc] px-4 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white"
+                >
+                  <option value="">Tat ca</option>
+                  {ROUTE_STATUSES.map((status) => (
+                    <option key={status} value={status}>{STATUS_META[status].label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 font-semibold text-white transition hover:bg-gray-800">
+                  <FaSearch />
+                  Loc
                 </button>
-              ) : null}
+              </div>
+            </form>
+          </div>
+
+          <div className="admin-surface overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-6">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Danh sach tuyen</h2>
+                <p className="mt-1 text-sm text-gray-500">Tong hop route code, diem dau/cuoi, hanh trinh, gia ve va workflow.</p>
+              </div>
+              {loading ? <span className="text-sm text-gray-500">Dang tai...</span> : null}
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.18em] text-gray-400">
+                    <th className="px-6 py-3 font-semibold">Tuyen</th>
+                    <th className="px-6 py-3 font-semibold">Dau / Cuoi</th>
+                    <th className="px-6 py-3 font-semibold">Hanh trinh</th>
+                    <th className="px-6 py-3 font-semibold">Van hanh</th>
+                    <th className="px-6 py-3 font-semibold">Trang thai</th>
+                    <th className="px-6 py-3 text-right font-semibold">Thao tac</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {!loading && routes.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                        Chua co tuyen nao phu hop bo loc hien tai.
+                      </td>
+                    </tr>
+                  ) : (
+                    routes.map((route) => {
+                      const statusMeta = getStatusMeta(route.status)
+                      return (
+                        <tr key={route._id} className="transition-colors hover:bg-[#fbfcfd]">
+                          <td className="px-6 py-4">
+                            <div className="flex items-start gap-3">
+                              <span className={`rounded-2xl px-3 py-1.5 text-sm font-bold text-white ${statusMeta.tile}`}>
+                                {route.routeNumber}
+                              </span>
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{route.name || 'Tuyen chua dat ten'}</p>
+                                <p className="mt-1 text-xs text-gray-500">{route.routeType || 'Chua co route type'} · {route.serviceType || 'Chua co service type'}</p>
+                                <p className="mt-2 max-w-[260px] text-xs text-gray-500">{route.description || 'Khong co mo ta'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-900">{stopLabel(route.startStop)}</p>
+                            <p className="mt-1 text-xs text-gray-500">{stopLabel(route.endStop)}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-900">{route.stopCount || 0} tram chieu di</p>
+                            <p className="mt-1 max-w-[260px] text-xs text-gray-500">{summarizeStops(route.outboundStops)}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-900">{formatOperationTime(route.operationTime)}</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {formatMoney(route.monthlyPassPrice)} · {(route.distance || 0).toLocaleString('vi-VN')} km
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusMeta.chip}`}>{statusMeta.label}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                onClick={() => setSelectedRoute(route)}
+                                className="rounded-xl p-2 text-blue-600 transition hover:bg-blue-50"
+                                title="Xem chi tiet"
+                              >
+                                <FaEye />
+                              </button>
+                              <button
+                                onClick={() => navigate(`/admin/routes/${route._id}/edit`)}
+                                className="rounded-xl p-2 text-indigo-600 transition hover:bg-indigo-50"
+                                title="Chinh sua"
+                              >
+                                <FaEdit />
+                              </button>
+                              {['ACTIVE', 'INACTIVE'].includes(route.status) ? (
+                                <button
+                                  onClick={() => handleToggleStatus(route)}
+                                  className={`rounded-xl p-2 transition ${route.status === 'ACTIVE' ? 'text-red-500 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}
+                                  title={route.status === 'ACTIVE' ? 'Tam ngung' : 'Kich hoat'}
+                                >
+                                  {route.status === 'ACTIVE' ? <FaBan /> : <FaUndo />}
+                                </button>
+                              ) : (
+                                <span className="rounded-xl bg-gray-100 p-2 text-gray-400" title="Workflow lock">
+                                  <FaBan />
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
+
+        <aside className="space-y-4">
+          <div className="admin-surface p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Workflow</p>
+            <div className="mt-4 space-y-3">
+              {ROUTE_STATUSES.map((status) => (
+                <div key={status} className="flex items-center gap-3 rounded-2xl bg-[#f8fafc] px-4 py-3">
+                  <span className={`h-3 w-3 rounded-full ${STATUS_META[status].tile}`} />
+                  <span className="text-sm font-semibold text-gray-700">{STATUS_META[status].label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="admin-surface p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Nhanh tay thao tac</p>
+            <div className="mt-4 space-y-3 text-sm text-gray-600">
+              <div className="rounded-2xl bg-[#f8fafc] px-4 py-4">
+                <p className="font-semibold text-gray-900">Route builder moi</p>
+                <p className="mt-1">Create/Edit route gio da ho tro chieu di, chieu ve, operational settings va preview map.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/routes/create')}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#23a983] px-4 py-3 font-semibold text-[#23a983] transition hover:bg-[#ecfdf5]"
+              >
+                <FaMapMarkerAlt />
+                Tao route builder moi
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {selectedRoute ? (
+        <RouteViewModal route={selectedRoute} onClose={() => setSelectedRoute(null)} />
       ) : null}
     </div>
   )

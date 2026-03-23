@@ -221,7 +221,7 @@ const AdminLayout = () => {
           </div>
         ) : null}
 
-        <div className="min-h-screen px-6 py-6 lg:px-8 lg:py-8">
+        <div className="min-h-screen px-5 py-5 lg:px-7 lg:py-6">
           <Outlet />
         </div>
       </main>

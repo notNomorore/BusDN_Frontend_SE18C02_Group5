@@ -7,21 +7,36 @@
   }
 
   .admin-page-head {
-    @apply flex flex-col gap-4 md:flex-row md:items-center md:justify-between;
+    @apply flex flex-col gap-3 md:flex-row md:items-center md:justify-between;
   }
 
   .admin-toolbar {
-    @apply rounded-2xl bg-white p-5;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    @apply rounded-xl bg-white px-4 py-3;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   }
 
   .admin-surface {
-    @apply rounded-2xl bg-white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    @apply rounded-xl bg-white;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   }
 
   .admin-sidebar-scroll {
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .admin-sidebar-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Remove all underlines from admin nav links */
+  .admin-shell a {
+    text-decoration: none !important;
+  }
+
+  /* Leaflet map fix inside modals */
+  .leaflet-container {
+    z-index: 0;
   }
 }
 
