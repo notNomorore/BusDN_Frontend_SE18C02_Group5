@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useCallback, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaBan,
@@ -15,24 +15,21 @@ import AuthContext from '../../context/AuthContext'
 import { useDialog } from '../../context/DialogContext'
 
 const STATUS_META = {
-  DRAFT: { label: 'DRAFT', chip: 'bg-slate-100 text-slate-700', tile: 'bg-slate-500' },
-  PENDING_REVIEW: { label: 'PENDING REVIEW', chip: 'bg-amber-100 text-amber-700', tile: 'bg-amber-500' },
-  APPROVED: { label: 'APPROVED', chip: 'bg-sky-100 text-sky-700', tile: 'bg-sky-500' },
-  SCHEDULED: { label: 'SCHEDULED', chip: 'bg-indigo-100 text-indigo-700', tile: 'bg-indigo-500' },
-  ACTIVE: { label: 'ACTIVE', chip: 'bg-emerald-100 text-emerald-700', tile: 'bg-[#23a983]' },
-  REJECTED: { label: 'REJECTED', chip: 'bg-rose-100 text-rose-700', tile: 'bg-rose-500' },
-  SUSPENDED: { label: 'SUSPENDED', chip: 'bg-gray-200 text-gray-700', tile: 'bg-gray-500' },
-  INACTIVE: { label: 'INACTIVE', chip: 'bg-gray-100 text-gray-600', tile: 'bg-gray-400' },
+  DRAFT: { label: 'Nhap', chip: 'bg-slate-100 text-slate-700', tile: 'bg-slate-500' },
+  PENDING_REVIEW: { label: 'Cho duyet', chip: 'bg-amber-100 text-amber-700', tile: 'bg-amber-500' },
+  APPROVED: { label: 'Da duyet', chip: 'bg-sky-100 text-sky-700', tile: 'bg-sky-500' },
+  SCHEDULED: { label: 'Len lich', chip: 'bg-indigo-100 text-indigo-700', tile: 'bg-indigo-500' },
+  ACTIVE: { label: 'Dang hoat dong', chip: 'bg-emerald-100 text-emerald-700', tile: 'bg-[#23a983]' },
+  REJECTED: { label: 'Tu choi', chip: 'bg-rose-100 text-rose-700', tile: 'bg-rose-500' },
+  SUSPENDED: { label: 'Tam dung', chip: 'bg-gray-200 text-gray-700', tile: 'bg-gray-500' },
+  INACTIVE: { label: 'Ngung hoat dong', chip: 'bg-gray-100 text-gray-600', tile: 'bg-gray-400' },
 }
 
 const ROUTE_STATUSES = Object.keys(STATUS_META)
-
 const modalShadow = 'shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
 
 const getStatusMeta = (status) => STATUS_META[status] || STATUS_META.DRAFT
-
 const formatMoney = (value) => `${Number(value || 0).toLocaleString('vi-VN')} d`
-
 const formatOperationTime = (operationTime) => {
   if (!operationTime) return '-'
   if (typeof operationTime === 'string') return operationTime
@@ -48,10 +45,10 @@ const stopLabel = (stop) => {
 
 const summarizeStops = (stops = []) => {
   if (!stops.length) return 'Chua co tram'
-  return stops.slice(0, 3).map((stop) => stop.name).join(' -> ') + (stops.length > 3 ? ' ...' : '')
+  return stops.slice(0, 4).map((stop) => stop.name).join(' -> ') + (stops.length > 4 ? ' ...' : '')
 }
 
-const RouteViewModal = ({ route, onClose }) => {
+function RouteViewModal({ route, onClose }) {
   if (!route) return null
   const statusMeta = getStatusMeta(route.status)
 
@@ -64,7 +61,7 @@ const RouteViewModal = ({ route, onClose }) => {
             <h3 className="mt-2 text-2xl font-bold text-gray-900">
               {route.routeNumber} - {route.name || 'Tuyen chua dat ten'}
             </h3>
-            <p className="mt-1 text-sm text-gray-500">Xem nhanh metadata, diem dau/cuoi va cau hinh hanh trinh.</p>
+            <p className="mt-1 text-sm text-gray-500">Xem nhanh diem dau/cuoi, hanh trinh hai chieu va cau hinh van hanh.</p>
           </div>
           <button onClick={onClose} className="text-2xl font-bold text-gray-400 transition hover:text-gray-600">
             &times;
@@ -98,15 +95,7 @@ const RouteViewModal = ({ route, onClose }) => {
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <div>
-                    <p className="text-sm font-semibold text-gray-500">Route type</p>
-                    <p className="mt-1 text-sm font-bold text-gray-900">{route.routeType || 'Chua cau hinh'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-500">Service type</p>
-                    <p className="mt-1 text-sm font-bold text-gray-900">{route.serviceType || 'Chua cau hinh'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-500">Operation time</p>
+                    <p className="text-sm font-semibold text-gray-500">Khung gio</p>
                     <p className="mt-1 text-sm font-bold text-gray-900">{formatOperationTime(route.operationTime)}</p>
                   </div>
                   <div>
@@ -126,11 +115,9 @@ const RouteViewModal = ({ route, onClose }) => {
 
             <section className="space-y-4">
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chieu di</p>
-                    <p className="mt-1 text-sm text-gray-500">So tram: {route.outboundStops?.length || 0}</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chieu di</p>
+                  <p className="mt-1 text-sm text-gray-500">So tram: {route.outboundStops?.length || 0}</p>
                 </div>
                 <div className="mt-4 space-y-3">
                   {(route.outboundStops || []).length === 0 ? (
@@ -180,7 +167,7 @@ const RouteViewModal = ({ route, onClose }) => {
   )
 }
 
-const AdminRoutes = () => {
+export default function AdminRoutes() {
   const { token } = useContext(AuthContext)
   const { showAlert, showConfirm } = useDialog()
   const navigate = useNavigate()
@@ -191,18 +178,13 @@ const AdminRoutes = () => {
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedRoute, setSelectedRoute] = useState(null)
 
-  useEffect(() => {
-    fetchRoutes()
-  }, [statusFilter])
-
-  const fetchRoutes = async () => {
+  const fetchRoutes = useCallback(async () => {
     try {
       setLoading(true)
-      const params = new URLSearchParams()
-      if (search.trim()) params.set('q', search.trim())
-      if (statusFilter) params.set('status', statusFilter)
-      const query = params.toString()
-      const res = await api.get(`/api/admin/routes${query ? `?${query}` : ''}`)
+      const params = {}
+      if (search.trim()) params.q = search.trim()
+      if (statusFilter) params.status = statusFilter
+      const res = await api.get('/api/admin/routes', { params })
       if (res.data.ok) setRoutes(res.data.routes || [])
     } catch (error) {
       console.error('Error fetching routes:', error)
@@ -210,7 +192,11 @@ const AdminRoutes = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search, showAlert, statusFilter])
+
+  useEffect(() => {
+    fetchRoutes()
+  }, [fetchRoutes])
 
   const handleSearch = (event) => {
     event.preventDefault()
@@ -218,7 +204,9 @@ const AdminRoutes = () => {
   }
 
   const handleToggleStatus = (route) => {
-    const actionText = route.status === 'ACTIVE' ? 'tam ngung' : 'kich hoat lai'
+    const isActive = route.status === 'ACTIVE'
+    const actionText = isActive ? 'tam ngung' : 'kich hoat lai'
+
     showConfirm(`Ban co chac muon ${actionText} tuyen ${route.routeNumber}?`, async () => {
       try {
         const res = await api.post(`/api/admin/routes/${route._id}/toggle-status`)
@@ -226,12 +214,15 @@ const AdminRoutes = () => {
           setRoutes((current) => current.map((item) => (
             item._id === route._id ? { ...item, status: res.data.status } : item
           )))
+          if (selectedRoute?._id === route._id) {
+            setSelectedRoute((prev) => ({ ...prev, status: res.data.status }))
+          }
           showAlert(res.data.message || 'Cap nhat trang thai thanh cong', 'Thanh cong')
         }
       } catch (error) {
         showAlert(error.response?.data?.message || 'Khong the cap nhat trang thai tuyen', 'Loi')
       }
-    })
+    }, isActive ? 'Tam ngung tuyen' : 'Kich hoat tuyen')
   }
 
   if (!token) return null
@@ -342,7 +333,6 @@ const AdminRoutes = () => {
                               </span>
                               <div>
                                 <p className="text-sm font-bold text-gray-900">{route.name || 'Tuyen chua dat ten'}</p>
-                                <p className="mt-1 text-xs text-gray-500">{route.routeType || 'Chua co route type'} · {route.serviceType || 'Chua co service type'}</p>
                                 <p className="mt-2 max-w-[260px] text-xs text-gray-500">{route.description || 'Khong co mo ta'}</p>
                               </div>
                             </div>
@@ -358,7 +348,7 @@ const AdminRoutes = () => {
                           <td className="px-6 py-4">
                             <p className="text-sm font-semibold text-gray-900">{formatOperationTime(route.operationTime)}</p>
                             <p className="mt-1 text-xs text-gray-500">
-                              {formatMoney(route.monthlyPassPrice)} · {(route.distance || 0).toLocaleString('vi-VN')} km
+                              {formatMoney(route.monthlyPassPrice)} · {Number(route.distance || 0).toLocaleString('vi-VN')} km
                             </p>
                           </td>
                           <td className="px-6 py-4">
@@ -419,11 +409,11 @@ const AdminRoutes = () => {
           </div>
 
           <div className="admin-surface p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Nhanh tay thao tac</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Tac vu nhanh</p>
             <div className="mt-4 space-y-3 text-sm text-gray-600">
               <div className="rounded-2xl bg-[#f8fafc] px-4 py-4">
-                <p className="font-semibold text-gray-900">Route builder moi</p>
-                <p className="mt-1">Create/Edit route gio da ho tro chieu di, chieu ve, operational settings va preview map.</p>
+                <p className="font-semibold text-gray-900">Route builder</p>
+                <p className="mt-1">Form tao/chinh sua ho tro 2 chieu, metadata van hanh va preview map.</p>
               </div>
               <button
                 type="button"
@@ -444,5 +434,3 @@ const AdminRoutes = () => {
     </div>
   )
 }
-
-export default AdminRoutes

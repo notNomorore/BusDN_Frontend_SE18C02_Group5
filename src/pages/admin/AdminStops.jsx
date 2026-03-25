@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import React, { useState, useEffect, useCallback } from 'react'
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { FaPlus, FaEdit, FaMapMarkerAlt, FaExternalLinkAlt, FaToggleOn, FaToggleOff, FaTimes, FaSearch } from 'react-icons/fa'
+import { FaPlus, FaEdit, FaMapMarkerAlt, FaExternalLinkAlt, FaToggleOn, FaToggleOff, FaTimes, FaSearch, FaBolt } from 'react-icons/fa'
 import api from '../../utils/api'
 import { useDialog } from '../../context/DialogContext'
 
@@ -18,14 +18,118 @@ const inputCls = 'w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 
 const labelCls = 'mb-1 block text-xs font-semibold text-gray-600'
 const EMPTY_FORM = { name: '', address: '', lat: '', lng: '', isTerminal: false, status: 'ACTIVE' }
 const DA_NANG = [16.0544, 108.2022]
+const DA_NANG_BOUNDS = L.latLngBounds(
+  [15.97, 107.97],
+  [16.21, 108.31],
+)
+
+function parseCoord(value) {
+  if (value === null || value === undefined || value === '') return null
+  const normalized = String(value).trim().replace(',', '.')
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatCoord(value) {
+  return Number(value).toFixed(6)
+}
+
+function isWithinDaNang(lat, lng) {
+  return DA_NANG_BOUNDS.contains([lat, lng])
+}
+
+function buildStopNameFromResult(result) {
+  const nameParts = []
+  const address = result?.address || {}
+  const primary = address.road || address.pedestrian || address.neighbourhood || address.suburb || address.hamlet
+  const district = address.city_district || address.town || address.city
+
+  if (primary) nameParts.push(primary)
+  if (district && !nameParts.includes(district)) nameParts.push(district)
+  if (!nameParts.length && result?.name) nameParts.push(result.name)
+  if (!nameParts.length && result?.display_name) {
+    nameParts.push(String(result.display_name).split(',')[0].trim())
+  }
+
+  return nameParts.join(' - ').trim()
+}
+
+function buildAddressFromResult(result) {
+  if (result?.display_name) return String(result.display_name).trim()
+  if (result?.name) return String(result.name).trim()
+  return ''
+}
+
+async function geocodeInDaNang(query) {
+  const scopedQuery = `${query}, Da Nang, Viet Nam`
+  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&addressdetails=1&bounded=1&viewbox='
+    + encodeURIComponent('107.97,16.21,108.31,15.97')
+    + '&q='
+    + encodeURIComponent(scopedQuery)
+
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!response.ok) {
+    throw new Error('Khong the tim dia diem.')
+  }
+
+  const results = await response.json()
+  if (!Array.isArray(results) || !results.length) {
+    throw new Error('Khong tim thay dia diem phu hop trong khu vuc Da Nang.')
+  }
+
+  const bestMatch = results.find((item) => {
+    const lat = parseCoord(item.lat)
+    const lng = parseCoord(item.lon)
+    return lat !== null && lng !== null && isWithinDaNang(lat, lng)
+  })
+
+  if (!bestMatch) {
+    throw new Error('Dia diem tim duoc nam ngoai khu vuc Da Nang.')
+  }
+
+  const lat = parseCoord(bestMatch.lat)
+  const lng = parseCoord(bestMatch.lon)
+  if (lat === null || lng === null) {
+    throw new Error('Ket qua tim kiem khong co toa do hop le.')
+  }
+
+  return {
+    lat,
+    lng,
+    suggestedName: buildStopNameFromResult(bestMatch),
+    suggestedAddress: buildAddressFromResult(bestMatch),
+  }
+}
+
+function MapViewport({ lat, lng }) {
+  const map = useMap()
+
+  useEffect(() => {
+    const nextLat = parseCoord(lat)
+    const nextLng = parseCoord(lng)
+    if (nextLat !== null && nextLng !== null && isWithinDaNang(nextLat, nextLng)) {
+      map.setView([nextLat, nextLng], 16)
+    } else {
+      map.fitBounds(DA_NANG_BOUNDS)
+    }
+  }, [lat, lng, map])
+
+  return null
+}
 
 function MapPicker({ lat, lng, onChange }) {
-  const pos = lat && lng ? [parseFloat(lat), parseFloat(lng)] : null
+  const parsedLat = parseCoord(lat)
+  const parsedLng = parseCoord(lng)
+  const pos = parsedLat !== null && parsedLng !== null ? [parsedLat, parsedLng] : null
 
   function ClickHandler() {
     useMapEvents({
       click(e) {
-        onChange(e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6))
+        if (!isWithinDaNang(e.latlng.lat, e.latlng.lng)) return
+        onChange(formatCoord(e.latlng.lat), formatCoord(e.latlng.lng))
       },
     })
     return null
@@ -36,14 +140,30 @@ function MapPicker({ lat, lng, onChange }) {
       center={pos || DA_NANG}
       zoom={13}
       style={{ height: '220px', width: '100%', borderRadius: '10px', zIndex: 0 }}
-      key={pos ? pos.join(',') : 'default'}
+      maxBounds={DA_NANG_BOUNDS.pad(0.25)}
     >
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       />
       <ClickHandler />
-      {pos && <Marker position={pos} />}
+      <MapViewport lat={lat} lng={lng} />
+      {pos && (
+        <Marker
+          position={pos}
+          draggable
+          eventHandlers={{
+            dragend(event) {
+              const nextPos = event.target.getLatLng()
+              if (!isWithinDaNang(nextPos.lat, nextPos.lng)) {
+                event.target.setLatLng(pos)
+                return
+              }
+              onChange(formatCoord(nextPos.lat), formatCoord(nextPos.lng))
+            },
+          }}
+        />
+      )}
     </MapContainer>
   )
 }
@@ -62,23 +182,38 @@ function StopFormModal({ stop, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [geoSearch, setGeoSearch] = useState('')
   const [searching, setSearching] = useState(false)
+  const [geoError, setGeoError] = useState('')
   const set = (f, v) => setForm(p => ({ ...p, [f]: v }))
 
-  const handleGeoSearch = async () => {
-    if (!geoSearch.trim()) return
+  const syncCoords = useCallback((lat, lng) => {
+    setForm((prev) => ({ ...prev, lat, lng }))
+    setGeoError('')
+  }, [])
+
+  const handleGeoSearch = async ({ quickFill = false } = {}) => {
+    const query = (geoSearch || form.address || form.name).trim()
+    if (!query) {
+      setGeoError('Vui long nhap dia chi hoac ten dia diem de tim tren ban do.')
+      return
+    }
     setSearching(true)
+    setGeoError('')
     try {
-      const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(geoSearch))
-      const data = await res.json()
-      if (data.length > 0) {
-        set('lat', parseFloat(data[0].lat).toFixed(6))
-        set('lng', parseFloat(data[0].lon).toFixed(6))
-        if (!form.address) set('address', data[0].display_name.split(',').slice(0, 3).join(','))
-      } else {
-        showAlert('Khong tim thay dia diem nay', 'Tim kiem')
+      const match = await geocodeInDaNang(query)
+      syncCoords(formatCoord(match.lat), formatCoord(match.lng))
+      if (quickFill) {
+        setForm((prev) => ({
+          ...prev,
+          name: prev.name.trim() ? prev.name : (match.suggestedName || ''),
+          address: match.suggestedAddress || prev.address,
+          lat: formatCoord(match.lat),
+          lng: formatCoord(match.lng),
+        }))
+        if (match.suggestedAddress) setGeoSearch(match.suggestedAddress)
       }
-    } catch {
-      showAlert('Loi khi tim kiem dia diem', 'Loi')
+    } catch (error) {
+      const message = error?.message || 'Loi khi tim kiem dia diem'
+      setGeoError(message)
     } finally {
       setSearching(false)
     }
@@ -87,19 +222,26 @@ function StopFormModal({ stop, onClose, onSaved }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.name.trim()) return showAlert('Ten tram la bat buoc', 'Loi')
+    const lat = parseCoord(form.lat)
+    const lng = parseCoord(form.lng)
+    if (lat === null || lng === null) return showAlert('Vui long nhap day du vi do va kinh do hop le', 'Loi')
+    if (!isWithinDaNang(lat, lng)) return showAlert('Vi tri tram phai nam trong khu vuc Da Nang', 'Loi')
     setSaving(true)
     try {
       const payload = {
         name: form.name.trim(),
         address: form.address.trim(),
-        lat: form.lat !== '' ? Number(form.lat) : undefined,
-        lng: form.lng !== '' ? Number(form.lng) : undefined,
+        lat,
+        lng,
         isTerminal: form.isTerminal,
         status: form.status,
       }
       const url = isEdit ? '/api/admin/stops/' + stop._id : '/api/admin/stops/create'
       const res = isEdit ? await api.put(url, payload) : await api.post(url, payload)
-      if (res.data.ok) { onSaved(); onClose() }
+      if (res.data.ok) {
+        onSaved()
+        onClose()
+      }
     } catch (err) {
       showAlert(err.response?.data?.message || 'Loi khi luu tram', 'Loi')
     } finally {
@@ -109,15 +251,15 @@ function StopFormModal({ stop, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <h2 className="text-base font-bold text-gray-900">{isEdit ? 'Chinh sua tram' : 'Them Tram Moi'}</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><FaTimes size={14} /></button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 gap-0">
+          <div className="grid max-h-[calc(92vh-88px)] grid-cols-1 overflow-y-auto lg:grid-cols-2">
             {/* Left: form fields */}
-            <div className="space-y-3 border-r border-gray-100 px-6 py-4">
+            <div className="space-y-3 px-6 py-4 lg:border-r lg:border-gray-100">
               <div>
                 <label className={labelCls}>Ten tram *</label>
                 <input className={inputCls} value={form.name} onChange={e => set('name', e.target.value)} placeholder="VD: Tram Nguyen Van Linh" />
@@ -133,11 +275,16 @@ function StopFormModal({ stop, onClose, onSaved }) {
                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGeoSearch())}
                     placeholder="Nhap dia chi hoac ten dia diem..." />
                   <button type="button" onClick={handleGeoSearch} disabled={searching}
-                    className="flex-shrink-0 rounded-lg bg-[#23a983] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1bbd8f] disabled:opacity-50">
+                    className="flex-shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                     <FaSearch size={12} />
                   </button>
+                  <button type="button" onClick={() => handleGeoSearch({ quickFill: true })} disabled={searching}
+                    className="flex-shrink-0 rounded-lg border border-[#2563eb] bg-white px-3 py-2 text-sm font-semibold text-[#2563eb] hover:bg-blue-50 disabled:opacity-50">
+                    <span className="inline-flex items-center gap-2 whitespace-nowrap"><FaBolt size={11} /> Them tram nhanh</span>
+                  </button>
                 </div>
-                <p className="mt-1 text-xs text-gray-400">Ban co the click len ban do hoac keo marker de lay toa do chinh xac.</p>
+                <p className="mt-1 text-xs text-gray-400">Chi tim trong khu vuc Da Nang. Nut "Them tram nhanh" se tu dien ten tram, dia chi va toa do tu ket qua tim kiem.</p>
+                {geoError && <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">{geoError}</div>}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -167,7 +314,7 @@ function StopFormModal({ stop, onClose, onSaved }) {
             <div className="px-6 py-4">
               <label className={labelCls}>Ban do</label>
               <p className="mb-2 text-xs text-gray-400">Click de chon vi tri. Keo marker de tinh chinh toa do.</p>
-              <MapPicker lat={form.lat} lng={form.lng} onChange={(lat, lng) => { set('lat', lat); set('lng', lng) }} />
+              <MapPicker lat={form.lat} lng={form.lng} onChange={syncCoords} />
             </div>
           </div>
           <div className="flex justify-end gap-3 border-t border-gray-100 px-6 py-4">
@@ -267,31 +414,32 @@ export default function AdminStops() {
     } finally {
       setLoading(false)
     }
-  }, [search, statusFilter])
+  }, [search, showAlert, statusFilter])
 
   useEffect(() => { fetchStops() }, [fetchStops])
 
   const handleToggle = async (stop) => {
     const isActive = stop.status === 'ACTIVE'
-    const confirmed = await showConfirm(
+    showConfirm(
       (isActive ? 'Tam ngung' : 'Kich hoat') + ' tram ' + stop.name + '?',
+      async () => {
+        setToggling(true)
+        try {
+          const res = await api.post('/api/admin/stops/' + stop._id + '/toggle-status')
+          if (res.data.ok) {
+            fetchStops()
+            if (selectedStop?._id === stop._id) {
+              setSelectedStop(res.data.stop || { ...selectedStop, status: isActive ? 'INACTIVE' : 'ACTIVE' })
+            }
+          }
+        } catch (err) {
+          showAlert(err.response?.data?.message || 'Loi khi cap nhat trang thai', 'Loi')
+        } finally {
+          setToggling(false)
+        }
+      },
       isActive ? 'Tam ngung tram' : 'Kich hoat tram'
     )
-    if (!confirmed) return
-    setToggling(true)
-    try {
-      const res = await api.post('/api/admin/stops/' + stop._id + '/toggle-status')
-      if (res.data.ok) {
-        fetchStops()
-        if (selectedStop?._id === stop._id) {
-          setSelectedStop(p => ({ ...p, status: isActive ? 'INACTIVE' : 'ACTIVE' }))
-        }
-      }
-    } catch (err) {
-      showAlert(err.response?.data?.message || 'Loi khi cap nhat trang thai', 'Loi')
-    } finally {
-      setToggling(false)
-    }
   }
 
   const total = stops.length
