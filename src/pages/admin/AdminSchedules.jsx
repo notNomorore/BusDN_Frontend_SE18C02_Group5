@@ -14,8 +14,10 @@ const AdminSchedules = () => {
 
     const [showModal, setShowModal] = useState(false);
     const [showGenModal, setShowGenModal] = useState(false);
+    const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [genLoading, setGenLoading] = useState(false);
+    const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
     const [formData, setFormData] = useState({
         routeId: '',
         date: '',
@@ -33,6 +35,14 @@ const AdminSchedules = () => {
         dateTo: '',
         autoAssign: true,
         replaceScheduled: false,
+    });
+
+    const [bulkDeleteForm, setBulkDeleteForm] = useState({
+        scope: 'ALL_ROUTES', // ALL_ROUTES | ROUTE
+        routeId: '',
+        timeMode: 'RANGE', // RANGE | ALL_TIME
+        dateFrom: '',
+        dateTo: '',
     });
 
     const fetchData = useCallback(async () => {
@@ -64,6 +74,7 @@ const AdminSchedules = () => {
         const today = new Date().toISOString().split('T')[0];
         setFormData((prev) => ({ ...prev, date: today }));
         setGenForm((g) => ({ ...g, dateFrom: today, dateTo: today }));
+        setBulkDeleteForm((d) => ({ ...d, dateFrom: today, dateTo: today }));
     }, [fetchData]);
 
     const handleOpenModal = (item = null) => {
@@ -261,6 +272,61 @@ const AdminSchedules = () => {
         }
     };
 
+    const handleBulkDeleteSchedules = async (ackMonthlyPass = false, ackTripTickets = false) => {
+        if (bulkDeleteForm.scope === 'ROUTE' && !bulkDeleteForm.routeId) {
+            showAlert('Chọn tuyến', 'Lỗi');
+            return;
+        }
+        if (bulkDeleteForm.timeMode === 'RANGE' && (!bulkDeleteForm.dateFrom || !bulkDeleteForm.dateTo)) {
+            showAlert('Chọn khoảng ngày', 'Lỗi');
+            return;
+        }
+
+        try {
+            setBulkDeleteLoading(true);
+            const payload = {
+                scope: bulkDeleteForm.scope,
+                routeId: bulkDeleteForm.scope === 'ROUTE' ? bulkDeleteForm.routeId : undefined,
+                timeMode: bulkDeleteForm.timeMode,
+                dateFrom: bulkDeleteForm.timeMode === 'RANGE' ? bulkDeleteForm.dateFrom : undefined,
+                dateTo: bulkDeleteForm.timeMode === 'RANGE' ? bulkDeleteForm.dateTo : undefined,
+                acknowledgeMonthlyPass: ackMonthlyPass,
+                acknowledgeTripTickets: ackTripTickets,
+            };
+
+            const res = await api.post('/api/admin/schedules/bulk-delete', payload);
+            if (res.data.ok) {
+                showAlert(res.data.message || 'Đã xóa', 'Thành công');
+                setShowBulkDeleteModal(false);
+                fetchData();
+            }
+        } catch (e) {
+            const st = e.response?.status;
+            const d = e.response?.data;
+
+            if (st === 409 && d?.code === 'MONTHLY_PASS_WARNING' && !ackMonthlyPass) {
+                const n = d.activeMonthlyPassesOnDay;
+                showConfirm(
+                    `Xác nhận xóa dù có ${n} vé tháng hiệu lực trong ngày?`,
+                    () => handleBulkDeleteSchedules(true, ackTripTickets)
+                );
+                return;
+            }
+            if (st === 409 && d?.code === 'TRIP_TICKET_WARNING' && !ackTripTickets) {
+                const n = d.activeTripTicketsBooked;
+                showConfirm(
+                    `Xác nhận xóa dù có ${n} vé lẻ đã đặt?`,
+                    () => handleBulkDeleteSchedules(ackMonthlyPass, true)
+                );
+                return;
+            }
+
+            showAlert(d?.message || 'Lỗi khi xóa lịch', 'Lỗi');
+        } finally {
+            setBulkDeleteLoading(false);
+        }
+    };
+
     const getStatusStyle = (schedule) => {
         const st = schedule.effectiveStatus || schedule.status || 'SCHEDULED';
         if (st === 'CANCELLED') return { color: 'bg-red-100 text-red-800 border-red-200', text: 'Đã hủy' };
@@ -305,6 +371,22 @@ const AdminSchedules = () => {
                         className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 flex items-center gap-2"
                     >
                         <FaMagic /> Sinh lịch theo tuần
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const r0 = bulkDeleteForm.scope === 'ROUTE' ? (routes[0]?._id || '') : '';
+                            setBulkDeleteForm((d) => ({
+                                ...d,
+                                scope: 'ALL_ROUTES',
+                                routeId: r0,
+                                timeMode: 'RANGE',
+                            }));
+                            setShowBulkDeleteModal(true);
+                        }}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 flex items-center gap-2"
+                    >
+                        <FaTrash /> Xóa lịch
                     </button>
                     <button
                         onClick={() => handleOpenModal()}
@@ -471,6 +553,109 @@ const AdminSchedules = () => {
                                     className={`px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 ${genLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                 >
                                     {genLoading ? 'Đang sinh lịch...' : 'Sinh lịch'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showBulkDeleteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-black">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
+                                <FaTrash /> Xóa lịch hàng loạt
+                            </h3>
+                            <button type="button" onClick={() => setShowBulkDeleteModal(false)} className="text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
+                        </div>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleBulkDeleteSchedules(false, false);
+                            }}
+                            className="p-6 space-y-4"
+                        >
+                            <p className="text-sm text-gray-600">
+                                Chỉ xóa chuyến trạng thái <b>SCHEDULED</b> (chưa chạy). Hệ thống sẽ yêu cầu xác nhận nếu có vé tháng hoặc vé lẻ đã đặt.
+                            </p>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Phạm vi</label>
+                                <select
+                                    value={bulkDeleteForm.scope}
+                                    onChange={(e) => setBulkDeleteForm((d) => ({ ...d, scope: e.target.value }))}
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 outline-none"
+                                >
+                                    <option value="ALL_ROUTES">Toàn bộ tuyến</option>
+                                    <option value="ROUTE">Theo tuyến</option>
+                                </select>
+                            </div>
+
+                            {bulkDeleteForm.scope === 'ROUTE' && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tuyến *</label>
+                                    <select
+                                        required
+                                        value={bulkDeleteForm.routeId}
+                                        onChange={(e) => setBulkDeleteForm((d) => ({ ...d, routeId: e.target.value }))}
+                                        className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 outline-none"
+                                    >
+                                        <option value="">-- Chọn --</option>
+                                        {routes.map((r) => (
+                                            <option key={r._id} value={r._id}>{r.routeNumber} — {r.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Thời gian</label>
+                                <select
+                                    value={bulkDeleteForm.timeMode}
+                                    onChange={(e) => setBulkDeleteForm((d) => ({ ...d, timeMode: e.target.value }))}
+                                    className="w-full bg-white border border-gray-300 rounded-lg px-4 py-2 outline-none"
+                                >
+                                    <option value="RANGE">Trong khoảng ngày</option>
+                                    <option value="ALL_TIME">Tất cả thời gian</option>
+                                </select>
+                            </div>
+
+                            {bulkDeleteForm.timeMode === 'RANGE' && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Từ ngày *</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={bulkDeleteForm.dateFrom}
+                                            onChange={(e) => setBulkDeleteForm((d) => ({ ...d, dateFrom: e.target.value }))}
+                                            className="w-full border rounded-lg px-3 py-2"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Đến ngày *</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={bulkDeleteForm.dateTo}
+                                            onChange={(e) => setBulkDeleteForm((d) => ({ ...d, dateTo: e.target.value }))}
+                                            className="w-full border rounded-lg px-3 py-2"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-2 pt-4">
+                                <button type="button" onClick={() => setShowBulkDeleteModal(false)} className="px-4 py-2 bg-gray-100 rounded-lg font-semibold" disabled={bulkDeleteLoading}>
+                                    Đóng
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={bulkDeleteLoading}
+                                    className={`px-4 py-2 bg-red-600 text-white rounded-lg font-semibold ${bulkDeleteLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-red-700'}`}
+                                >
+                                    {bulkDeleteLoading ? 'Đang xóa...' : 'Xóa lịch'}
                                 </button>
                             </div>
                         </form>
