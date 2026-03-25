@@ -37,6 +37,8 @@ const AdminSchedules = () => {
         replaceScheduled: false,
     });
 
+    const todayDateString = new Date().toISOString().split('T')[0];
+
     const [bulkDeleteForm, setBulkDeleteForm] = useState({
         scope: 'ALL_ROUTES', // ALL_ROUTES | ROUTE
         routeId: '',
@@ -256,6 +258,16 @@ const AdminSchedules = () => {
             showAlert('Chọn tuyến và khoảng ngày', 'Lỗi');
             return;
         }
+
+        if (genForm.dateFrom < todayDateString || genForm.dateTo < todayDateString) {
+            showAlert('Không thể chọn ngày trong quá khứ', 'Lỗi');
+            return;
+        }
+        if (genForm.dateTo <= genForm.dateFrom) {
+            showAlert('Khoảng ngày không hợp lệ (Đến ngày phải lớn hơn Từ ngày)', 'Lỗi');
+            return;
+        }
+
         try {
             setGenLoading(true);
             const res = await api.post('/api/admin/schedules/generate', genForm);
@@ -530,11 +542,31 @@ const AdminSchedules = () => {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Từ ngày *</label>
-                                    <input type="date" required value={genForm.dateFrom} onChange={(e) => setGenForm({ ...genForm, dateFrom: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+                                    <input
+                                        type="date"
+                                        required
+                                        min={todayDateString}
+                                        value={genForm.dateFrom}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            setGenForm({ ...genForm, dateFrom: v < todayDateString ? todayDateString : v });
+                                        }}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Đến ngày *</label>
-                                    <input type="date" required value={genForm.dateTo} onChange={(e) => setGenForm({ ...genForm, dateTo: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+                                    <input
+                                        type="date"
+                                        required
+                                        min={todayDateString}
+                                        value={genForm.dateTo}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            setGenForm({ ...genForm, dateTo: v < todayDateString ? todayDateString : v });
+                                        }}
+                                        className="w-full border rounded-lg px-3 py-2"
+                                    />
                                 </div>
                             </div>
                             <label className="flex items-center gap-2 text-sm">
