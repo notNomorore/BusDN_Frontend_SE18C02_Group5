@@ -15,6 +15,7 @@ const AdminSchedules = () => {
     const [showModal, setShowModal] = useState(false);
     const [showGenModal, setShowGenModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
+    const [genLoading, setGenLoading] = useState(false);
     const [formData, setFormData] = useState({
         routeId: '',
         date: '',
@@ -245,6 +246,7 @@ const AdminSchedules = () => {
             return;
         }
         try {
+            setGenLoading(true);
             const res = await api.post('/api/admin/schedules/generate', genForm);
             if (res.data.ok) {
                 const sk = res.data.skipped?.length ? ` (Bỏ qua ${res.data.skipped.length} slot)` : '';
@@ -254,6 +256,8 @@ const AdminSchedules = () => {
             }
         } catch (e) {
             showAlert(e.response?.data?.message || 'Lỗi sinh lịch', 'Lỗi');
+        } finally {
+            setGenLoading(false);
         }
     };
 
@@ -461,7 +465,13 @@ const AdminSchedules = () => {
                             </label>
                             <div className="flex justify-end gap-2 pt-4">
                                 <button type="button" onClick={() => setShowGenModal(false)} className="px-4 py-2 bg-gray-100 rounded-lg font-semibold">Đóng</button>
-                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">Sinh lịch</button>
+                                <button
+                                    type="submit"
+                                    disabled={genLoading}
+                                    className={`px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 ${genLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                >
+                                    {genLoading ? 'Đang sinh lịch...' : 'Sinh lịch'}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -531,6 +541,7 @@ const AdminSchedules = () => {
                                             required
                                             value={formData.shiftEnd}
                                             onChange={(e) => setFormData({ ...formData, shiftEnd: e.target.value })}
+                                            max="19:30"
                                             className="w-full bg-white border border-gray-300 rounded-lg px-2 py-2 outline-none text-sm"
                                         />
                                     </div>
