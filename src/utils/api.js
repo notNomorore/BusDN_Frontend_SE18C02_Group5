@@ -16,6 +16,13 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         }
+        if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+            if (typeof config.headers?.setContentType === 'function') {
+                config.headers.setContentType(undefined);
+            } else if (config.headers) {
+                delete config.headers['Content-Type'];
+            }
+        }
         return config;
     },
     (error) => {

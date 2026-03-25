@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef } from 'react'
 import './App.css'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Home from './pages/Home'
 import Footer from './components/Footer'
@@ -12,7 +12,9 @@ import Profile from './pages/Profile'
 import RouteDetails from './pages/RouteDetails'
 import ForgotPassword from './pages/ForgotPassword'
 import MonthlyPass from './pages/MonthlyPass'
+import MonthlyPassResult from './pages/MonthlyPassResult'
 import CreatePassword from './pages/CreatePassword'
+import LoginPage from './pages/LoginPage'
 import FirstLoginProfile from './pages/FirstLoginProfile'
 import ActivateAccount from './pages/ActivateAccount'
 import ImportStaff from './pages/ImportStaff'
@@ -33,6 +35,7 @@ import BroadcastNotification from './pages/admin/BroadcastNotification'
 import FareMatrix from './pages/admin/FareMatrix'
 import RevenueReports from './pages/admin/RevenueReports'
 import AdminFeedback from './pages/admin/AdminFeedback'
+import AdminPromotions from './pages/admin/AdminPromotions'
 import DriverLayout from './pages/driver/DriverLayout'
 import ViewSchedule from './pages/driver/ViewSchedule'
 import TripControl from './pages/driver/TripControl'
@@ -46,6 +49,10 @@ import ChatBot from './components/ChatBot'
 import { DialogProvider, useDialog } from './context/DialogContext'
 import AuthContext from './context/AuthContext'
 import { io } from 'socket.io-client'
+import RegisterStep1 from './pages/register/RegisterStep1'
+import RegisterStep2 from './pages/register/RegisterStep2'
+import RegisterVerifyOtp from './pages/register/RegisterVerifyOtp'
+import RegisterCreatePassword from './pages/register/RegisterCreatePassword'
 
 const NotificationRealtime = () => {
   const { token, userRole } = useContext(AuthContext)
@@ -88,6 +95,12 @@ function AppContent() {
         <NotificationRealtime />
 
         <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<Navigate to="/register/step-1" replace />} />
+          <Route path="/register/step-1" element={<RegisterStep1 />} />
+          <Route path="/register/step-2" element={<RegisterStep2 />} />
+          <Route path="/register/verify-otp" element={<RegisterVerifyOtp />} />
+          <Route path="/register/create-password" element={<RegisterCreatePassword />} />
           <Route path="/create-password" element={<CreatePassword />} />
           <Route path="/first-login/profile" element={<FirstLoginProfile />} />
           <Route path="/activate-account" element={<ActivateAccount />} />
@@ -113,6 +126,7 @@ function AppContent() {
             <Route path="fare-matrix" element={<FareMatrix />} />
             <Route path="reports" element={<RevenueReports />} />
             <Route path="feedback" element={<AdminFeedback />} />
+            <Route path="promotions" element={<AdminPromotions />} />
           </Route>
 
           <Route path="/driver" element={<DriverLayout />}>
@@ -128,33 +142,49 @@ function AppContent() {
             <Route path="full-load" element={<ReportFullLoad />} />
           </Route>
 
-          <Route
-            path="/*"
-            element={
-              <div className="flex flex-col min-h-screen bg-[#f5fefa]">
-                <Header />
-                <main className="flex-1 min-h-0">
-                  <Routes>
-                    <Route path='/' element={<Home />} />
-                    <Route path='/available-seat' element={<AvailableBus />} />
-                    <Route path='/seat-selection/:id' element={<SeatSelection />} />
-                    <Route path='/passenger-details' element={<PassengerDetails />} />
-                    <Route path='/track-bus' element={<TrackBus />} />
-                    <Route path='/profile' element={<Profile />} />
-                    <Route path='/route-details/:id' element={<RouteDetails />} />
-                    <Route path='/forgot-password' element={<ForgotPassword />} />
-                    <Route path='/monthly-pass' element={<MonthlyPass />} />
-                    <Route path='/rate-trip/:tripId' element={<RateTripPage />} />
-                  </Routes>
-                </main>
-                <Footer />
-              </div>
-            }
-          />
+          <Route path="/*" element={<PublicShell />} />
         </Routes>
+        <ChatBotPortal />
       </Router>
-      <ChatBot />
     </BusProvider>
+  )
+}
+
+function ChatBotPortal() {
+  const location = useLocation()
+
+  if (location.pathname === '/monthly-pass/result') {
+    return null
+  }
+
+  return <ChatBot />
+}
+
+function PublicShell() {
+  const location = useLocation()
+  const isProfileScreen = location.pathname === '/profile'
+  const isMonthlyPassResultScreen = location.pathname === '/monthly-pass/result'
+
+  return (
+    <div className={`flex min-h-screen flex-col ${isMonthlyPassResultScreen ? 'bg-[#f2fcf8]' : 'bg-[#f5fefa]'}`}>
+      {!isMonthlyPassResultScreen ? <Header /> : null}
+      <main className={`flex-1 min-h-0 ${isProfileScreen ? 'overflow-hidden' : ''}`}>
+        <Routes>
+          <Route path='/' element={<Home />} />
+          <Route path='/available-seat' element={<AvailableBus />} />
+          <Route path='/seat-selection/:id' element={<SeatSelection />} />
+          <Route path='/passenger-details' element={<PassengerDetails />} />
+          <Route path='/track-bus' element={<TrackBus />} />
+          <Route path='/profile' element={<Profile />} />
+          <Route path='/route-details/:id' element={<RouteDetails />} />
+          <Route path='/forgot-password' element={<ForgotPassword />} />
+          <Route path='/monthly-pass' element={<MonthlyPass />} />
+          <Route path='/monthly-pass/result' element={<MonthlyPassResult />} />
+          <Route path='/rate-trip/:tripId' element={<RateTripPage />} />
+        </Routes>
+      </main>
+      {(!isProfileScreen && !isMonthlyPassResultScreen) ? <Footer /> : null}
+    </div>
   )
 }
 

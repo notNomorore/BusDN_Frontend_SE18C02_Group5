@@ -1,465 +1,718 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { LuUser, LuWallet, LuShieldCheck, LuLock } from "react-icons/lu";
-import { FaTicketAlt } from "react-icons/fa";
+import React, { useCallback, useContext, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion as Motion } from 'framer-motion';import { FaTicketAlt } from 'react-icons/fa';
+import {
+  FiAlertCircle,
+  FiArrowRight,
+  FiCalendar,
+  FiCheckCircle,
+  FiClock,
+  FiCreditCard,
+  FiEdit2,
+  FiFileText,
+  FiLogOut,
+  FiMail,
+  FiPhone,
+  FiRefreshCw,
+  FiShield,
+  FiUser
+} from 'react-icons/fi';
+import { LuLock, LuShieldCheck, LuWallet } from 'react-icons/lu';
 import AuthContext from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { motion } from "framer-motion";
 import api from '../utils/api';
 import { useDialog } from '../context/DialogContext';
 
+const TABS = [
+  { id: 'settings', label: 'Personal Profile' },
+  { id: 'bookings', label: 'My Tickets' },
+  { id: 'priority', label: 'Priority Profile' }
+];
+
+const PRIORITY_TYPES = ['Student', 'War Veteran', 'Disabled', 'Elderly', 'Other'];
+const BENEFITS = [
+  'Discounted fares on supported routes',
+  'Priority seating access when available',
+  'Faster support for account-related issues',
+  'Eligibility for selected seasonal promotions'
+];
+
+const fadeInUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } }
+};
+
+const formatCurrencyVnd = (value) =>
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value || 0);
+
+const formatDateLabel = (value) => {
+  if (!value) return 'Not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not set';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+};
+
+const normalizePriorityStatus = (status) => {
+  const value = String(status || 'NONE').toUpperCase();
+  if (['PENDING', 'APPROVED', 'REJECTED', 'EXPIRED'].includes(value)) return value;
+  return 'NONE';
+};
+
+const prioritySplitClass = 'grid gap-5 xl:grid-cols-[30%_minmax(0,1fr)]';
+const EMPTY_PRIORITY_FILES = {
+  cardImageFront: null,
+  cardImageBack: null,
+  proofImage: null
+};
+
+const extractFileName = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return raw.split(/[\\/]/).pop() || raw;
+};
+
+
+const getInitials = (name) =>
+  String(name || 'User')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'U';
+
 const Profile = () => {
-  const [activeTab, setActiveTab] = useState('settings'); // settings, bookings, priority
+  const [activeTab, setActiveTab] = useState('settings');
   const [data, setData] = useState({});
   const [wallet, setWallet] = useState(0);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editMode, setEditMode] = useState(false);
-
-  // Password change state
   const [showPasswordEdit, setShowPasswordEdit] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-
-  // Priority Registration state
-  const [priorityType, setPriorityType] = useState('Student');
-  const [priorityDocUrl, setPriorityDocUrl] = useState('');
-
-  // Wallet Deposit state
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
+  const [priorityForm, setPriorityForm] = useState({
+    type: 'Student',
+    cardNumber: '',
+    expiryDate: '',
+    cardImageFront: '',
+    cardImageBack: '',
+    proofImage: ''
+  });
+  const [priorityFiles, setPriorityFiles] = useState({ ...EMPTY_PRIORITY_FILES });
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { logout, token } = useContext(AuthContext);
   const { showAlert } = useDialog();
-
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 60 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
+  const priorityStatus = normalizePriorityStatus(data?.priorityProfile?.status);
+  const getPriorityUploadName = (field) => priorityFiles[field]?.name || extractFileName(priorityForm[field]) || 'Chon anh tai len';
+  const hasPriorityUpload = (field) => Boolean(priorityFiles[field] || priorityForm[field]);
+  const handlePriorityFileChange = (field, file) => {
+    setPriorityFiles((current) => ({ ...current, [field]: file || null }));
   };
 
   useEffect(() => {
-    if (token) {
-      fetchUser();
-      fetchWallet();
-    } else {
-      navigate('/');
-    }
-  }, [token, navigate]);
+    const tab = searchParams.get('tab');
+    if (tab && ['settings', 'bookings', 'priority'].includes(tab)) setActiveTab(tab);
+  }, [searchParams]);
 
-  const fetchUser = async () => {
+  const hydratePriorityForm = useCallback((user) => {
+    const profile = user?.priorityProfile || {};
+    setPriorityForm({
+      type: profile.type || 'Student',
+      cardNumber: profile.cardNumber || '',
+      expiryDate: profile.expiryDate ? new Date(profile.expiryDate).toISOString().split('T')[0] : '',
+      cardImageFront: profile.cardImageFront || '',
+      cardImageBack: profile.cardImageBack || '',
+      proofImage: profile.proofImage || ''
+    });
+    setPriorityFiles({ ...EMPTY_PRIORITY_FILES });
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    localStorage.removeItem('token');
+    navigate('/');
+  }, [logout, navigate]);
+
+  const fetchUser = useCallback(async () => {
     try {
       const res = await api.get('/api/user/profile');
-      const user = res.data.user;
+      const user = res.data.user || {};
       setData(user);
-      setEditName(user.fullName);
-      setEditPhone(user.phone);
+      setWallet(user.walletBalance || 0);
+      setEditName(user.fullName || '');
+      setEditPhone(user.phone || '');
       setEditMode(false);
+      hydratePriorityForm(user);
     } catch (err) {
-      console.error("Error fetching user:", err.message);
-      if (err.response?.status === 401) {
-        handleLogout();
-      }
+      console.error('Error fetching user:', err.message);
+      if (err.response?.status === 401) handleLogout();
     }
-  }
+  }, [handleLogout, hydratePriorityForm]);
 
-  const fetchWallet = async () => {
+  const fetchWallet = useCallback(async () => {
     try {
       const res = await api.get('/api/user/wallet');
-      if (res.data.ok) {
-        setWallet(res.data.walletBalance);
-      }
+      if (res.data.ok) setWallet(res.data.walletBalance || 0);
     } catch (err) {
-      console.error("Error fetching wallet:", err.message);
+      console.error('Error fetching wallet:', err.message);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!token) {
+      navigate('/');
+      return;
+    }
+    fetchUser();
+    fetchWallet();
+  }, [fetchUser, fetchWallet, navigate, token]);
 
   const updateUser = async () => {
     try {
-      const res = await api.post('/api/user/update-profile', {
-        fullName: editName,
-        phone: editPhone
-      });
+      const res = await api.post('/api/user/update-profile', { fullName: editName, phone: editPhone });
       if (res.data.ok) {
-        setData(res.data.user);
+        setData(res.data.user || {});
         setEditMode(false);
-        showAlert('Profile updated successfully!', 'Thành công');
+        showAlert('Profile updated successfully.', 'Success');
       }
     } catch (err) {
-      console.error("Error updating user:", err.message);
-      showAlert('Failed to update profile.', 'Lỗi');
+      console.error('Error updating user:', err.message);
+      showAlert('Failed to update profile.', 'Error');
     }
-  }
+  };
 
-  const updatePassword = async (e) => {
-    e.preventDefault();
+  const updatePassword = async (event) => {
+    event.preventDefault();
     if (!oldPassword || !newPassword) {
-      showAlert("Please fill in both password fields.", 'Thông báo');
+      showAlert('Please fill in both password fields.', 'Notice');
       return;
     }
     try {
-      const res = await api.post('/api/user/change-password', {
-        oldPassword,
-        newPassword
-      });
+      const res = await api.post('/api/user/change-password', { oldPassword, newPassword });
       if (res.data.ok) {
-        showAlert(res.data.message || "Password changed successfully!", 'Thành công');
+        showAlert(res.data.message || 'Password changed successfully.', 'Success');
         setShowPasswordEdit(false);
         setOldPassword('');
         setNewPassword('');
       }
     } catch (err) {
-      console.error("Error changing password:", err.message);
-      showAlert(err.response?.data?.message || "Failed to change password. Please check your old password.", 'Lỗi');
-    }
-  }
-
-  const submitPriorityRequest = async (e) => {
-    e.preventDefault();
-    if (!priorityDocUrl) {
-      showAlert("Please provide a document URL.", 'Thông báo');
-      return;
-    }
-    try {
-      const res = await api.post('/api/user/register-priority', {
-        type: priorityType,
-        documentUrl: priorityDocUrl
-      });
-      if (res.data.ok) {
-        showAlert(res.data.message || "Priority registration submitted successfully!", 'Thành công');
-        fetchUser(); // Refresh user data to get the updated status
-      }
-    } catch (err) {
-      console.error("Error submitting priority:", err.message);
-      showAlert(err.response?.data?.message || "Failed to submit priority registration.", 'Lỗi');
+      console.error('Error changing password:', err.message);
+      showAlert(err.response?.data?.message || 'Failed to change password.', 'Error');
     }
   };
 
-  const handleDeposit = async (e) => {
-    e.preventDefault();
-    const amountNum = parseInt(depositAmount, 10);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      showAlert("Please enter a valid deposit amount.", 'Thông báo');
+  const handleDeposit = async (event) => {
+    event.preventDefault();
+    const amount = Number(depositAmount);
+    if (!amount || amount <= 0) {
+      showAlert('Please enter a valid deposit amount.', 'Notice');
       return;
     }
     try {
-      const res = await api.post('/api/user/wallet/deposit', { amount: amountNum });
+      const res = await api.post('/api/user/wallet/deposit', { amount });
       if (res.data.ok) {
-        showAlert("Deposit successful!", 'Thành công');
-        setWallet(res.data.walletBalance);
-        setShowDepositForm(false);
+        setWallet(res.data.newBalance ?? res.data.walletBalance ?? wallet);
         setDepositAmount('');
-      } else {
-        showAlert(res.data.message || "Failed to deposit.", 'Lỗi');
+        setShowDepositForm(false);
+        showAlert('Wallet updated successfully.', 'Success');
       }
     } catch (err) {
-      console.error("Error depositing:", err.message);
-      showAlert(err.response?.data?.message || "Failed to make a deposit.", 'Lỗi');
+      console.error('Error depositing:', err.message);
+      showAlert(err.response?.data?.message || 'Failed to deposit wallet.', 'Error');
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    localStorage.removeItem('token');
-    navigate('/');
-  }
+  const submitPriorityRequest = async (event) => {
+    event.preventDefault();
+    const { type, cardNumber, expiryDate, cardImageFront, cardImageBack, proofImage } = priorityForm;
+    const frontUpload = priorityFiles.cardImageFront;
+    const backUpload = priorityFiles.cardImageBack;
+    const proofUpload = priorityFiles.proofImage;
 
-  if (!token) return null;
+    if (!cardNumber || !(frontUpload || cardImageFront) || !(backUpload || cardImageBack) || !(proofUpload || proofImage)) {
+      showAlert('Please complete the required priority profile fields.', 'Notice');
+      return;
+    }
+    try {
+      const formData = new FormData();
+      formData.append('type', type);
+      formData.append('cardNumber', cardNumber);
+      if (expiryDate) formData.append('expiryDate', expiryDate);
+      if (frontUpload) formData.append('cardImageFront', frontUpload);
+      else if (cardImageFront) formData.append('cardImageFront', cardImageFront);
+      if (backUpload) formData.append('cardImageBack', backUpload);
+      else if (cardImageBack) formData.append('cardImageBack', cardImageBack);
+      if (proofUpload) formData.append('proofImage', proofUpload);
+      else if (proofImage) formData.append('proofImage', proofImage);
 
-  return (
-    <motion.div
-      variants={fadeInUp}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true }}
-      className="min-h-screen bg-[#f5fefa]"
-    >
-      <div className='py-2 border-b border-b-gray-200 bg-white shadow-sm'>
-        <div className='flex items-center justify-center flex-col py-8'>
-          <span className='rounded-full p-4 bg-gradient-to-r from-green-500 to-[#23a983] text-white shadow-lg mb-4'>
-            <LuUser style={{ fontSize: '40px' }} />
+      const res = await api.post('/api/user/register-priority', formData);
+      if (res.data.ok) {
+        showAlert(res.data.message || 'Priority request submitted.', 'Success');
+        setPriorityFiles({ ...EMPTY_PRIORITY_FILES });
+        fetchUser();
+        setActiveTab('priority');
+      }
+    } catch (err) {
+      console.error('Error submitting priority:', err.message);
+      showAlert(err.response?.data?.message || 'Failed to submit priority profile.', 'Error');
+    }
+  };
+
+  const cardClass = 'profile-card rounded-[1.75rem] border border-emerald-100 bg-white p-5 shadow-[0_20px_50px_rgba(15,118,110,0.08)]';
+
+  const renderField = (label, icon, value, onChange, editable = false, type = 'text') => (
+    <label className="space-y-1.5">
+      <span className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">{label}</span>
+      <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${editable ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-slate-50/80'}`}>
+        <span className="text-slate-400">{icon}</span>
+        {editable ? (
+          <input value={value} onChange={onChange} type={type} className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none md:text-base" />
+        ) : (
+          <span className="text-sm font-medium text-slate-700 md:text-base">{value || 'Not available'}</span>
+        )}
+      </div>
+    </label>
+  );
+
+  const renderPriorityUploadField = (label, field, Icon) => {
+    const hasUpload = hasPriorityUpload(field);
+
+    return (
+      <div key={field} className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label} *</p>
+        <label
+          className={`flex min-h-[152px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
+            hasUpload
+              ? 'border-emerald-300 bg-emerald-50/70'
+              : 'border-slate-200 bg-slate-50 hover:border-emerald-400 hover:bg-emerald-50/30'
+          }`}
+        >
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            className="hidden"
+            onChange={(e) => handlePriorityFileChange(field, e.target.files?.[0] || null)}
+          />
+          <span className={`flex h-12 w-12 items-center justify-center rounded-full ${hasUpload ? 'bg-emerald-100 text-emerald-600' : 'bg-white text-slate-400 shadow-sm'}`}>
+            <Icon className="text-xl" />
           </span>
-          <h1 className='font-bold text-3xl my-2 text-black'>{data.fullName || 'User'}</h1>
-          <p className='text-gray-600 font-medium'>{data.email}</p>
-          <div className="flex flex-col items-center mt-4">
-            <div className="flex items-center gap-2 bg-green-50 text-green-700 px-6 py-2.5 rounded-full font-semibold border border-green-200 shadow-sm">
-              <LuWallet className="text-2xl" />
-              <span className="text-xl">Wallet Balance: {wallet.toLocaleString()} VND</span>
-            </div>
-            {!showDepositForm ? (
-              <div className="flex gap-6 mt-3">
-                <button
-                  onClick={() => setShowDepositForm(true)}
-                  className="text-[#23a983] font-semibold text-sm hover:underline cursor-pointer"
-                >
-                  + Add Funds
-                </button>
-                <button
-                  onClick={() => navigate('/monthly-pass')}
-                  className="text-[#23a983] font-semibold text-sm hover:underline cursor-pointer flex items-center gap-1.5"
-                >
-                  <FaTicketAlt /> Buy Monthly Pass
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleDeposit} className="mt-4 flex gap-2">
-                <input
-                  type="number"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="Enter amount (VND)"
-                  className="border border-gray-300 rounded-md px-3 py-1.5 focus:outline-[#23a983] focus:border-[#23a983] w-40 text-black"
-                />
-                <button type="submit" className="bg-[#23a983] text-white px-4 py-1.5 rounded-md font-semibold hover:bg-[#1bbd8f]">Deposit</button>
-                <button type="button" onClick={() => setShowDepositForm(false)} className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-md font-semibold hover:bg-gray-300">Cancel</button>
-              </form>
-            )}
+          <span className="text-sm font-bold text-slate-700">{hasUpload ? 'Da chon tep' : 'Chon anh tai len'}</span>
+          <span className="w-full break-all text-xs leading-5 text-slate-500">{getPriorityUploadName(field)}</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">JPG, PNG, toi da 10MB</span>
+        </label>
+      </div>
+    );
+  };
+
+  const settingsTab = (
+    <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      {/* Left sidebar */}
+      <div className="space-y-4">
+        {/* Account Identity */}
+        <div className="rounded-[1.75rem] bg-[#072f28] p-5 text-white shadow-[0_24px_50px_rgba(7,47,40,0.24)]">
+          <p className="text-xs font-bold uppercase tracking-[0.32em] text-emerald-300">Account Identity</p>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-lg font-black text-white">{getInitials(data?.fullName)}</div>
+            <h1 className="text-xl font-black leading-tight text-white">{data?.fullName || 'BusDN Rider'}</h1>
+          </div>
+          <div className="mt-4 space-y-2 text-sm text-emerald-100">
+            <div className="flex items-center gap-2"><FiMail className="flex-shrink-0 text-emerald-300" /><span className="truncate">{data?.email || 'No email yet'}</span></div>
+            <div className="flex items-center gap-2"><FiPhone className="flex-shrink-0 text-emerald-300" /><span>{data?.phone || 'No phone number'}</span></div>
+          </div>
+        </div>
+
+        {/* Wallet only */}
+        <div className={`${cardClass} bg-gradient-to-br from-emerald-50 via-white to-teal-50`}>
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Wallet Balance</p>
+          <h2 className="mt-1.5 text-2xl font-black text-slate-900">{formatCurrencyVnd(wallet)}</h2>
+          <p className="mt-1 text-xs text-slate-500">Use wallet credit for tickets and monthly passes.</p>
+          <div className="mt-3">
+            <button onClick={() => navigate('/monthly-pass')} className="w-full whitespace-nowrap rounded-xl border border-emerald-200 py-2 text-xs font-bold text-emerald-700">+ Buy Monthly Pass</button>
           </div>
         </div>
       </div>
 
-      <div className='flex mx-4 my-6 text-gray-700 bg-white shadow-md py-2 px-2 rounded-lg justify-around max-w-3xl md:mx-auto border border-gray-100'>
-        <button
-          className={`cursor-pointer w-full py-2.5 rounded-md mx-1 font-semibold transition-colors ${activeTab === 'bookings' ? 'bg-[#23a983] text-white shadow' : 'hover:bg-gray-100'}`}
-          onClick={() => setActiveTab('bookings')}
-        >
-          My Tickets
-        </button>
-        <button
-          className={`cursor-pointer w-full py-2.5 rounded-md mx-1 font-semibold transition-colors ${activeTab === 'settings' ? 'bg-[#23a983] text-white shadow' : 'hover:bg-gray-100'}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          Profile Settings
-        </button>
-        <button
-          className={`flex justify-center items-center gap-2 cursor-pointer w-full py-2.5 rounded-md mx-1 font-semibold transition-colors ${activeTab === 'priority' ? 'bg-[#059669] text-white shadow' : 'hover:bg-gray-100'}`}
-          onClick={() => setActiveTab('priority')}
-        >
-          <LuShieldCheck /> Priority
-        </button>
-      </div>
-
-      <div className='mx-4 my-4 max-w-3xl md:mx-auto pb-12'>
-        {activeTab === 'settings' && (
-          <div className='text-black bg-white shadow-lg p-6 rounded-xl border border-gray-100'>
-            <h2 className='font-bold text-2xl mb-6 text-gray-800 border-b pb-4'>Personal Information</h2>
-            <div className='space-y-4'>
-              <div>
-                <label className='text-gray-500 text-sm font-semibold uppercase tracking-wide block mb-1'>Full Name</label>
-                {editMode ? (
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className='border border-gray-300 w-full px-4 py-2 rounded-lg text-black focus:ring-2 focus:ring-[#23a983] focus:border-transparent outline-none transition-all'
-                  />
-                ) : <p className='text-gray-900 font-semibold text-lg bg-gray-50 px-4 py-2 rounded-lg'>{data?.fullName || '--'}</p>}
-              </div>
-
-              <div>
-                <label className='text-gray-500 text-sm font-semibold uppercase tracking-wide block mb-1 mt-4'>Email (Unchangeable)</label>
-                <p className='text-gray-600 font-medium text-lg bg-gray-100 px-4 py-2 rounded-lg cursor-not-allowed'>{data?.email}</p>
-              </div>
-
-              <div>
-                <label className='text-gray-500 text-sm font-semibold uppercase tracking-wide block mb-1 mt-4'>Phone Number</label>
-                {editMode ? (
-                  <input
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className='border border-gray-300 w-full px-4 py-2 rounded-lg text-black focus:ring-2 focus:ring-[#23a983] focus:border-transparent outline-none transition-all'
-                  />
-                ) : <p className='text-gray-900 font-semibold text-lg bg-gray-50 px-4 py-2 rounded-lg'>{data?.phone || '--'}</p>}
-              </div>
+      {/* Right content */}
+      <div className="space-y-4">
+        <section className={cardClass}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="rounded-full bg-emerald-100 px-4 py-1 text-xs font-bold uppercase tracking-[0.28em] text-emerald-700">Personal Profile</p>
+              <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900">Personal Information</h2>
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">Keep your contact details accurate so ticket updates and account notices reach you without interruption.</p>
             </div>
-
-            <div className='mt-8 pt-6 border-t'>
-              <h3 className='font-bold text-xl mb-4 text-gray-800 flex items-center gap-2'>
-                <LuLock className="text-gray-600" /> Security
-              </h3>
-
-              {!showPasswordEdit ? (
-                <button
-                  onClick={() => setShowPasswordEdit(true)}
-                  className='bg-white border-2 border-gray-300 text-gray-700 font-semibold py-2 px-6 rounded-lg hover:border-blue-500 hover:text-blue-600 transition-all text-sm'
-                >
-                  Change Password
-                </button>
-              ) : (
-                <form onSubmit={updatePassword} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <div className="space-y-3">
-                    <div>
-                      <label className='text-gray-600 text-sm font-semibold block mb-1'>Old Password</label>
-                      <input
-                        type="password"
-                        value={oldPassword}
-                        onChange={(e) => setOldPassword(e.target.value)}
-                        className='border border-gray-300 w-full px-4 py-2 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none'
-                        placeholder="Enter current password"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className='text-gray-600 text-sm font-semibold block mb-1'>New Password</label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className='border border-gray-300 w-full px-4 py-2 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none'
-                        placeholder="Enter new password"
-                        required
-                      />
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        type="submit"
-                        className='bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors text-sm'
-                      >
-                        Update Password
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPasswordEdit(false);
-                          setOldPassword('');
-                          setNewPassword('');
-                        }}
-                        className='bg-gray-200 text-gray-700 font-semibold py-2 px-6 rounded-lg hover:bg-gray-300 transition-colors text-sm'
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              )}
-            </div>
-
-            <div className='flex flex-col sm:flex-row justify-between items-center mt-10 gap-4 pt-6 border-t'>
-              {editMode ? (
-                <div className="flex gap-3 w-full sm:w-auto">
-                  <button
-                    className='bg-gray-200 text-gray-700 font-semibold py-2.5 px-6 rounded-lg hover:bg-gray-300 transition-colors w-full sm:w-auto'
-                    onClick={() => {
-                      setEditMode(false);
-                      setEditName(data?.fullName);
-                      setEditPhone(data?.phone);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className='bg-[#23a983] shadow-md text-white font-semibold py-2.5 px-6 rounded-lg hover:bg-[#1db179] transition-colors w-full sm:w-auto'
-                    onClick={updateUser}
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              ) : (
-                <button
-                  className='bg-white border-2 border-gray-300 text-gray-700 font-semibold py-2.5 px-6 rounded-lg hover:border-[#23a983] hover:text-[#23a983] transition-all w-full sm:w-auto'
-                  onClick={() => setEditMode(true)}
-                >
-                  Edit Profile
-                </button>
-              )}
-
-              <button
-                className='bg-red-50 text-red-600 font-semibold py-2.5 px-6 rounded-lg hover:bg-red-100 hover:text-red-700 transition-colors w-full sm:w-auto'
-                onClick={handleLogout}
-              >
-                Sign Out
-              </button>
+            <button onClick={() => setEditMode((value) => !value)} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700"><FiEdit2 /> {editMode ? 'Stop Editing' : 'Edit'}</button>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {renderField('Full Name', <FiUser />, editMode ? editName : data?.fullName, (event) => setEditName(event.target.value), editMode)}
+            {renderField('Phone Number', <FiPhone />, editMode ? editPhone : data?.phone, (event) => setEditPhone(event.target.value), editMode)}
+            {renderField('Email', <FiMail />, data?.email, undefined, false, 'email')}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">Priority Status</p>
+              <div className="mt-2 flex items-center gap-2">
+                <FiShield className="text-emerald-600" />
+                <span className="text-sm font-semibold text-slate-700">{priorityStatus}</span>
+              </div>
             </div>
           </div>
-        )}
-
-        {activeTab === 'bookings' && (
-          <div className='bg-white text-black p-8 rounded-xl shadow-lg border border-gray-100 text-center'>
-            <div className="text-5xl mb-4">🎫</div>
-            <h3 className='font-bold text-2xl text-gray-800 mb-2'>No Tickets Found</h3>
-            <p className='text-gray-500'>You haven't booked any bus tickets yet.</p>
-            <button
-              onClick={() => navigate('/')}
-              className="mt-6 bg-[#23a983] text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-[#1db179] transition-colors"
-            >
-              Search Routes
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'priority' && (
-          <div className='bg-white text-black p-8 rounded-xl shadow-lg border border-gray-100'>
-            <h2 className='font-bold text-2xl mb-4 text-gray-800 flex items-center gap-2'>
-              <LuShieldCheck className="text-[#059669]" /> Priority Passenger
-            </h2>
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg mb-6">
-              <p className="text-yellow-800 font-medium">
-                Current Status: <span className="font-bold uppercase">{data?.priorityProfile?.status || 'NONE'}</span>
-              </p>
+        </section>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
+          <section className={`${cardClass} bg-gradient-to-br from-white via-slate-50 to-emerald-50`}>
+            <div className="flex items-center gap-3">
+              <LuLock className="text-xl text-emerald-700" />
+              <h3 className="text-xl font-black text-slate-900">Security</h3>
             </div>
-
-            {data?.priorityProfile?.status === 'PENDING' ? (
-              <div className="bg-blue-50 border border-blue-200 p-6 rounded-lg text-center">
-                <SpinnerIcon className="animate-spin text-blue-500 text-3xl mx-auto mb-2" />
-                <h3 className="font-bold text-lg text-blue-800">Application Under Review</h3>
-                <p className="text-blue-600 mt-2">Your priority passenger application is currently pending review by an administrator. Please check back later.</p>
-              </div>
-            ) : data?.priorityProfile?.status === 'APPROVED' ? (
-              <div className="bg-green-50 border border-green-200 p-6 rounded-lg text-center">
-                <h3 className="font-bold text-lg text-green-800">You are a Priority Passenger</h3>
-                <p className="text-green-600 mt-2">You now receive discounts on applicable bus fares as a recorded {data?.priorityProfile?.type} passenger.</p>
-              </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Update your password regularly to protect ride history, wallet balance, and profile details.</p>
+            {!showPasswordEdit ? (
+              <button onClick={() => setShowPasswordEdit(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-700">Change password <FiArrowRight /></button>
             ) : (
-              <form onSubmit={submitPriorityRequest}>
-                <p className='text-gray-600 mb-6 leading-relaxed'>
-                  Register as a priority passenger (Student, Elderly, Disabled) to receive discounted fares. You will need to provide a link to your valid identification document.
-                </p>
-
-                <div className="space-y-4 mb-6">
-                  <div>
-                    <label className='font-semibold text-gray-700 block mb-1'>Priority Type</label>
-                    <select
-                      value={priorityType}
-                      onChange={(e) => setPriorityType(e.target.value)}
-                      className='w-full px-4 py-2.5 border border-gray-300 focus:border-[#059669] outline-none rounded-lg text-black bg-white'
-                    >
-                      <option value="Student">Student</option>
-                      <option value="Elderly">Elderly</option>
-                      <option value="Disabled">Disabled</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className='font-semibold text-gray-700 block mb-1'>Document URL (ID Card / Proof)</label>
-                    <input
-                      type="url"
-                      value={priorityDocUrl}
-                      onChange={(e) => setPriorityDocUrl(e.target.value)}
-                      placeholder="https://example.com/my-id-card.jpg"
-                      required
-                      className='w-full px-4 py-2.5 border border-gray-300 focus:border-[#059669] outline-none rounded-lg text-black'
-                    />
-                  </div>
+              <form onSubmit={updatePassword} className="mt-4 space-y-3">
+                <input value={oldPassword} onChange={(event) => setOldPassword(event.target.value)} type="password" placeholder="Current password" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none" />
+                <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} type="password" placeholder="New password" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none" />
+                <div className="flex gap-3">
+                  <button type="submit" className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">Update</button>
+                  <button type="button" onClick={() => { setShowPasswordEdit(false); setOldPassword(''); setNewPassword(''); }} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button>
                 </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-[#059669] text-white font-semibold py-3 rounded-lg shadow-md hover:bg-green-700 transition-colors"
-                >
-                  Submit Application
-                </button>
               </form>
             )}
-          </div>
-        )}
+          </section>
+          <section className="rounded-[1.75rem] border border-slate-700 bg-slate-900 p-5">
+            <div className="flex items-center gap-3">
+              <LuShieldCheck className="text-xl text-emerald-400" />
+              <h3 className="text-lg font-black text-white">Actions</h3>
+            </div>
+            <div className="mt-5 space-y-3">
+              <button onClick={updateUser} disabled={!editMode} className={`w-full rounded-2xl px-5 py-3.5 text-sm font-bold transition ${editMode ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400' : 'cursor-not-allowed bg-slate-700 text-slate-400'}`}>Save Changes</button>
+              <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-900/40 px-5 py-3.5 text-sm font-bold text-red-300 hover:bg-red-900/60"><FiLogOut /> Sign Out</button>
+            </div>
+          </section>
+        </div>
       </div>
-    </motion.div>
+    </div>
+  );
+
+  const bookingsTab = (() => {
+    const [passes, setPasses] = React.useState(null)
+    const [loadingPasses, setLoadingPasses] = React.useState(true)
+
+    React.useEffect(() => {
+      api.get('/api/user/passes/monthly')
+        .then(res => setPasses(res.data.myPasses || []))
+        .catch(() => setPasses([]))
+        .finally(() => setLoadingPasses(false))
+    }, [])
+
+    const statusColor = (s) => ({
+      ACTIVE: 'bg-emerald-50 text-emerald-700',
+      EXPIRED: 'bg-gray-100 text-gray-500',
+      CANCELLED: 'bg-red-50 text-red-600',
+    }[s] || 'bg-gray-100 text-gray-500')
+
+    const statusLabel = (s) => ({ ACTIVE: 'Sẵn sàng', EXPIRED: 'Hết hạn', CANCELLED: 'Đã hủy' }[s] || s)
+
+    if (loadingPasses) return (
+      <div className="flex h-40 items-center justify-center text-sm text-slate-400">Đang tải vé...</div>
+    )
+
+    if (!passes || passes.length === 0) return (
+      <section className={`${cardClass} text-center`}>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-emerald-100 text-2xl text-emerald-700"><FaTicketAlt /></div>
+        <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Chưa có vé nào</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">Sau khi mua vé tháng, danh sách vé của bạn sẽ hiển thị tại đây.</p>
+        <button onClick={() => navigate('/monthly-pass')} className="mt-6 rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white">Mua vé tháng</button>
+      </section>
+    )
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-black text-slate-900">Vé tháng của tôi</h2>
+          <button onClick={() => navigate('/monthly-pass')} className="rounded-xl border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50">+ Mua thêm vé</button>
+        </div>
+        {passes.map(pass => (
+          <div key={pass._id} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base font-black text-slate-900">
+                    {pass.displayRouteNumber ? `${pass.displayRouteNumber} – ${pass.displayRouteName}` : (pass.passType === 'INTER_ROUTE' ? 'Vé liên tuyến toàn mạng' : pass.displayRouteName || 'Tuyến xe')}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${statusColor(pass.status)}`}>{statusLabel(pass.status)}</span>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Kỳ {String(pass.month).padStart(2,'0')}/{pass.year} &nbsp;·&nbsp; Mã: <span className="font-mono font-semibold text-slate-700">{pass.passCode}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Hiệu lực: {pass.validFrom ? new Date(pass.validFrom).toLocaleDateString('vi-VN') : '--'} – {pass.validTo ? new Date(pass.validTo).toLocaleDateString('vi-VN') : '--'}
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-base font-black text-emerald-700">{Number(pass.pricePaid||0).toLocaleString('vi-VN')}đ</p>
+                <p className="mt-0.5 text-xs text-slate-400">{pass.passType === 'INTER_ROUTE' ? 'Liên tuyến' : 'Đơn tuyến'}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  })()
+
+  const priorityTab = (() => {
+    // APPROVED
+    if (priorityStatus === 'APPROVED') return (
+      <div className="space-y-5">
+        <div className="rounded-2xl bg-[#072f28] p-6 text-white shadow-[0_20px_40px_rgba(7,47,40,0.2)]">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <span className="inline-flex rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-emerald-300">Đã duyệt</span>
+              <h2 className="mt-3 text-2xl font-black text-white">Hồ sơ ưu tiên đã xác minh</h2>
+              <p className="mt-1 text-sm text-emerald-100/70">Ưu đãi giảm giá vé của bạn đang hoạt động và sẵn sàng cho các chuyến đi.</p>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3">
+              <FiCheckCircle className="text-2xl text-emerald-400" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Trạng thái</p>
+                <p className="text-base font-black text-white">APPROVED &amp; ACTIVE</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              ['Đối tượng', data?.priorityProfile?.type || 'Ưu tiên'],
+              ['Số thẻ', data?.priorityProfile?.cardNumber || 'Chưa có'],
+              ['Trạng thái', 'Hoạt động'],
+              ['Ngày hết hạn', formatDateLabel(data?.priorityProfile?.expiryDate)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-white/[0.08] p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">{label}</p>
+                <p className="mt-2 text-base font-black text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <section className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+            <h3 className="text-base font-black text-slate-900">Quyền lợi của bạn</h3>
+            <div className="mt-3 space-y-2">
+              {['Giảm giá vé trên các tuyến hỗ trợ', 'Ưu tiên chỗ ngồi khi có sẵn', 'Hỗ trợ tài khoản nhanh hơn', 'Đủ điều kiện cho các khuyến mãi theo mùa'].map((b) => (
+                <div key={b} className="flex items-center gap-3 rounded-xl bg-emerald-50 px-3 py-2.5 text-sm text-slate-700">
+                  <FiCheckCircle className="flex-shrink-0 text-emerald-600" />{b}
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <h3 className="text-base font-black text-slate-900">Giấy tờ đã nộp</h3>
+            <div className="mt-3 space-y-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Mặt trước thẻ</p>
+                <p className="mt-1 break-all text-sm text-slate-700">{extractFileName(data?.priorityProfile?.cardImageFront) || 'Chua co'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Mặt sau thẻ</p>
+                <p className="mt-1 break-all text-sm text-slate-700">{extractFileName(data?.priorityProfile?.cardImageBack) || 'Chua co'}</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+
+    // PENDING
+    if (priorityStatus === 'PENDING') return (
+      <div className="space-y-5">
+        <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-100">
+              <FiClock className="text-xl text-amber-600" />
+            </div>
+            <div>
+              <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-bold uppercase tracking-widest text-amber-700">Đang chờ duyệt</span>
+              <h2 className="mt-2 text-xl font-black text-slate-900">Hồ sơ đang được xem xét</h2>
+              <p className="mt-1 text-sm text-slate-600">Tài liệu của bạn đã được gửi. Quản trị viên sẽ xem xét trước khi kích hoạt ưu đãi.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-white border border-amber-100 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Đối tượng</p>
+              <p className="mt-1 text-base font-black text-slate-900">{data?.priorityProfile?.type || 'Chưa có'}</p>
+            </div>
+            <div className="rounded-xl bg-white border border-amber-100 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Số thẻ</p>
+              <p className="mt-1 text-base font-black text-slate-900">{data?.priorityProfile?.cardNumber || 'Chưa có'}</p>
+            </div>
+          </div>
+        </div>
+        <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h3 className="text-base font-black text-slate-900">Các bước tiếp theo</h3>
+          <div className="mt-3 space-y-2">
+            {[
+              [FiClock, 'Xem xét thủ công', 'Đội ngũ quản trị kiểm tra thông tin và tài liệu của bạn.'],
+              [FiCheckCircle, 'Cập nhật trạng thái', 'Sau khi duyệt, hồ sơ sẽ hiển thị huy hiệu ưu tiên và ngày hết hạn.'],
+              [FiAlertCircle, 'Cần thay đổi?', 'Nếu bị từ chối, bạn có thể gửi lại hồ sơ mới tại đây.'],
+            ].map(([Icon, title, desc]) => (
+              <div key={title} className="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
+                <Icon className="mt-0.5 flex-shrink-0 text-emerald-600" />
+                <div><p className="text-sm font-bold text-slate-900">{title}</p><p className="text-xs leading-5 text-slate-500">{desc}</p></div>
+              </div>
+            ))}
+          </div>
+          <button onClick={fetchUser} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
+            <FiRefreshCw size={13} /> Làm mới trạng thái
+          </button>
+        </section>
+      </div>
+    );
+
+    // REJECTED — show rejection reason + re-apply form
+    if (priorityStatus === 'REJECTED') return (
+      <div className={prioritySplitClass}>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
+            <div className="flex items-start gap-3">
+              <FiAlertCircle className="mt-0.5 flex-shrink-0 text-lg text-red-500" />
+              <div>
+                <p className="text-sm font-bold text-red-700">Hồ sơ bị từ chối</p>
+                <p className="mt-1 text-xs text-red-600">{data?.priorityProfile?.rejectionReason || 'Hồ sơ/Giấy tờ không hợp lệ'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Yêu cầu hồ sơ</p>
+            <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
+              <li className="flex items-start gap-2"><FiCheckCircle className="mt-0.5 flex-shrink-0 text-emerald-500" />Ảnh chụp CCCD mặt trước và mặt sau</li>
+              <li className="flex items-start gap-2"><FiCheckCircle className="mt-0.5 flex-shrink-0 text-emerald-500" />Giấy tờ minh chứng đối tượng ưu tiên</li>
+              <li className="flex items-start gap-2"><FiCheckCircle className="mt-0.5 flex-shrink-0 text-emerald-500" />Định dạng JPG, PNG, dưới 10MB</li>
+            </ul>
+          </div>
+        </div>
+        <form onSubmit={submitPriorityRequest} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <h3 className="text-base font-black text-slate-900">Gửi lại hồ sơ</h3>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Đối tượng *</label>
+                <select value={priorityForm.type} onChange={(e) => setPriorityForm((c) => ({ ...c, type: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400">
+                  {[['Student','Học sinh, Sinh viên'],['Elderly','Người cao tuổi (60+)'],['Disabled','Người khuyết tật'],['War Veteran','Thương binh']].map(([v,l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Số thẻ *</label>
+                <input value={priorityForm.cardNumber} onChange={(e) => setPriorityForm((c) => ({ ...c, cardNumber: e.target.value }))}
+                  placeholder="Nhập số thẻ" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400" />
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                ['Mặt trước thẻ', 'cardImageFront', FiCreditCard],
+                ['Mặt sau thẻ', 'cardImageBack', FiCreditCard],
+                ['Minh chứng ưu tiên', 'proofImage', FiFileText],
+              ].map(([label, field, Icon]) => renderPriorityUploadField(label, field, Icon))}
+            </div>
+          </div>
+          <button type="submit" className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white hover:bg-emerald-500">
+            Gửi lại hồ sơ <FiArrowRight />
+          </button>
+        </form>
+      </div>
+    );
+
+    // NONE — fresh apply
+    return (
+      <div className={prioritySplitClass}>
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-[#072f28] p-6 text-white shadow-[0_20px_40px_rgba(7,47,40,0.2)]">
+            <span className="inline-flex rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-emerald-300">Đăng ký ngay</span>
+            <h2 className="mt-3 text-xl font-black text-white">Hồ sơ ưu tiên</h2>
+            <p className="mt-2 text-sm leading-6 text-emerald-100/80">Đăng ký một lần để nhận ưu đãi giảm giá vé dài hạn cho học sinh, người cao tuổi, người khuyết tật và các đối tượng hợp lệ khác.</p>
+            <div className="mt-4 space-y-2">
+              {['Giảm giá vé trên các tuyến hỗ trợ', 'Ưu tiên chỗ ngồi khi có sẵn', 'Hỗ trợ tài khoản nhanh hơn'].map((b) => (
+                <div key={b} className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs text-emerald-100">
+                  <FiCheckCircle className="flex-shrink-0 text-emerald-400" />{b}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Yêu cầu hồ sơ</p>
+            <ul className="mt-3 space-y-1.5 text-xs text-slate-600">
+              <li className="flex items-start gap-2"><FiCheckCircle className="mt-0.5 flex-shrink-0 text-emerald-500" />Ảnh chụp CCCD mặt trước và mặt sau</li>
+              <li className="flex items-start gap-2"><FiCheckCircle className="mt-0.5 flex-shrink-0 text-emerald-500" />Giấy tờ minh chứng đối tượng ưu tiên</li>
+              <li className="flex items-start gap-2"><FiCheckCircle className="mt-0.5 flex-shrink-0 text-emerald-500" />Định dạng JPG, PNG, dưới 10MB</li>
+            </ul>
+          </div>
+        </div>
+        <form onSubmit={submitPriorityRequest} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <h3 className="text-base font-black text-slate-900">Chi tiết đăng ký</h3>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Đối tượng *</label>
+                <select value={priorityForm.type} onChange={(e) => setPriorityForm((c) => ({ ...c, type: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400">
+                  <option value="">-- Chọn đối tượng --</option>
+                  {[['Student','Học sinh, Sinh viên'],['Elderly','Người cao tuổi (60+)'],['Disabled','Người khuyết tật'],['War Veteran','Thương binh']].map(([v,l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Số thẻ *</label>
+                <input value={priorityForm.cardNumber} onChange={(e) => setPriorityForm((c) => ({ ...c, cardNumber: e.target.value }))}
+                  placeholder="Nhập số thẻ của bạn" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-400" />
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                ['Mặt trước thẻ', 'cardImageFront', FiCreditCard],
+                ['Mặt sau thẻ', 'cardImageBack', FiCreditCard],
+                ['Minh chứng ưu tiên', 'proofImage', FiFileText],
+              ].map(([label, field, Icon]) => renderPriorityUploadField(label, field, Icon))}
+            </div>
+          </div>
+          <button type="submit" className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-bold text-white hover:bg-emerald-500">
+            Gửi hồ sơ đăng ký <FiArrowRight />
+          </button>
+        </form>
+      </div>
+    );
+  })();
+
+  if (!token) return null;
+
+  return (
+    <Motion.div variants={fadeInUp} initial="hidden" animate="visible" className="profile-shell min-h-full bg-[linear-gradient(180deg,#f4faf7_0%,#eef5f3_48%,#f7faf9_100%)] px-[2.5%] py-4">
+      <div className="flex h-full w-full flex-col">
+        <section className="profile-surface flex min-h-[calc(100vh-128px)] flex-1 flex-col rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur md:p-6">
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="inline-flex rounded-full bg-emerald-100 px-4 py-1 text-xs font-bold uppercase tracking-[0.28em] text-emerald-700">Account Center</p>
+              <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">Profile and Priority Access</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Manage personal details, wallet activity, password security, and your priority fare profile from one place.</p>
+            </div>
+            <div className="flex flex-nowrap gap-3">
+              {TABS.map((tab) => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-950 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="profile-content-scroll mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+            {activeTab === 'settings' && settingsTab}
+            {activeTab === 'bookings' && bookingsTab}
+            {activeTab === 'priority' && priorityTab}
+          </div>
+        </section>
+      </div>
+    </Motion.div>
   );
 };
-
-const SpinnerIcon = ({ className }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
 
 export default Profile;

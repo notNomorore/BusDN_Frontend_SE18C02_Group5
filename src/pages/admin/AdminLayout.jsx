@@ -16,6 +16,7 @@ import {
   FaClipboardList,
   FaComments,
   FaFileImport,
+  FaTag,
 } from 'react-icons/fa'
 import AuthContext from '../../context/AuthContext'
 import api from '../../utils/api'
@@ -177,6 +178,12 @@ const AdminLayout = () => {
               <Link to="/admin/feedback" className={navItemClass(isActive('/admin/feedback'))}>
                 <FaComments className="w-5 h-5" />
                 <span>Phan hoi khach hang</span>
+              </Link>
+            </li>
+            <li>
+              <Link to="/admin/promotions" className={navItemClass(isActive('/admin/promotions'))}>
+                <FaTag className="w-5 h-5" />
+                <span>Khuyen mai</span>
               </Link>
             </li>
           </ul>
