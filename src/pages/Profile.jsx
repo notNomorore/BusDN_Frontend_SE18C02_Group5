@@ -454,6 +454,14 @@ const Profile = () => {
                 <p className="mt-0.5 text-xs text-slate-400">{pass.passType === 'INTER_ROUTE' ? 'Liên tuyến' : 'Đơn tuyến'}</p>
               </div>
             </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => navigate(`/monthly-pass/${pass._id}`)}
+                className="rounded-xl border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+              >
+                Xem chi tiet ve
+              </button>
+            </div>
           </div>
         ))}
       </div>

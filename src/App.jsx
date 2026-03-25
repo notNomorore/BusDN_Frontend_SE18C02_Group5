@@ -12,6 +12,7 @@ import Profile from './pages/Profile'
 import RouteDetails from './pages/RouteDetails'
 import ForgotPassword from './pages/ForgotPassword'
 import MonthlyPass from './pages/MonthlyPass'
+import MonthlyPassDetails from './pages/MonthlyPassDetails'
 import MonthlyPassResult from './pages/MonthlyPassResult'
 import CreatePassword from './pages/CreatePassword'
 import LoginPage from './pages/LoginPage'
@@ -179,6 +180,7 @@ function PublicShell() {
           <Route path='/route-details/:id' element={<RouteDetails />} />
           <Route path='/forgot-password' element={<ForgotPassword />} />
           <Route path='/monthly-pass' element={<MonthlyPass />} />
+          <Route path='/monthly-pass/:passId' element={<MonthlyPassDetails />} />
           <Route path='/monthly-pass/result' element={<MonthlyPassResult />} />
           <Route path='/rate-trip/:tripId' element={<RateTripPage />} />
         </Routes>

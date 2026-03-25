@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import AuthContext from '../context/AuthContext';
 
@@ -30,6 +30,7 @@ const StatusBadge = ({ status }) => {
 const MonthlyPass = () => {
   const { token } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
@@ -76,6 +77,45 @@ const MonthlyPass = () => {
       }
     })();
   }, [token, navigate]);
+
+  useEffect(() => {
+    const queryPassType = searchParams.get('passType');
+    const queryRouteId = searchParams.get('routeId');
+    const queryPaymentMethod = searchParams.get('paymentMethod');
+    const queryMonth = Number(searchParams.get('month') || 0);
+    const queryYear = Number(searchParams.get('year') || 0);
+    const queryPromoCode = searchParams.get('promoCode');
+    const queryError = searchParams.get('error');
+    const querySuccess = searchParams.get('success');
+
+    if (queryPassType === PASS_TYPE.SINGLE_ROUTE || queryPassType === PASS_TYPE.INTER_ROUTE) {
+      setPassType(queryPassType);
+    }
+    if (queryRouteId !== null) {
+      setSelectedRouteId(queryRouteId || '');
+    }
+    if (queryPaymentMethod === PAYMENT_METHOD.VNPAY || queryPaymentMethod === PAYMENT_METHOD.MOMO) {
+      setPaymentMethod(queryPaymentMethod);
+    }
+    if (Number.isInteger(queryMonth) && queryMonth >= 1 && queryMonth <= 12) {
+      setSelectedMonth(queryMonth);
+    }
+    if (Number.isInteger(queryYear) && queryYear >= new Date().getFullYear()) {
+      setSelectedYear(queryYear);
+    }
+    if (queryPromoCode !== null) {
+      setPromoCode(queryPromoCode);
+      setPromoResult(null);
+      setPromoError('');
+    }
+    if (queryError) {
+      setError(queryError);
+      setSuccess('');
+    } else if (querySuccess) {
+      setSuccess(querySuccess);
+      setError('');
+    }
+  }, [searchParams]);
 
   // ── Derived price calculations ──────────────────────────────────────────────
   const selectedRoute = pageData.routes.find(r => r._id === selectedRouteId) || null;
