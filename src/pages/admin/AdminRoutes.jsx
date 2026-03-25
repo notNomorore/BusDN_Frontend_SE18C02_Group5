@@ -15,14 +15,14 @@ import AuthContext from '../../context/AuthContext'
 import { useDialog } from '../../context/DialogContext'
 
 const STATUS_META = {
-  DRAFT: { label: 'Nhap', chip: 'bg-slate-100 text-slate-700', tile: 'bg-slate-500' },
-  PENDING_REVIEW: { label: 'Cho duyet', chip: 'bg-amber-100 text-amber-700', tile: 'bg-amber-500' },
-  APPROVED: { label: 'Da duyet', chip: 'bg-sky-100 text-sky-700', tile: 'bg-sky-500' },
-  SCHEDULED: { label: 'Len lich', chip: 'bg-indigo-100 text-indigo-700', tile: 'bg-indigo-500' },
-  ACTIVE: { label: 'Dang hoat dong', chip: 'bg-emerald-100 text-emerald-700', tile: 'bg-[#23a983]' },
-  REJECTED: { label: 'Tu choi', chip: 'bg-rose-100 text-rose-700', tile: 'bg-rose-500' },
-  SUSPENDED: { label: 'Tam dung', chip: 'bg-gray-200 text-gray-700', tile: 'bg-gray-500' },
-  INACTIVE: { label: 'Ngung hoat dong', chip: 'bg-gray-100 text-gray-600', tile: 'bg-gray-400' },
+  DRAFT: { label: 'Nháp', chip: 'bg-slate-100 text-slate-700', tile: 'bg-slate-500' },
+  PENDING_REVIEW: { label: 'Chờ duyệt', chip: 'bg-amber-100 text-amber-700', tile: 'bg-amber-500' },
+  APPROVED: { label: 'Đã duyệt', chip: 'bg-sky-100 text-sky-700', tile: 'bg-sky-500' },
+  SCHEDULED: { label: 'Lên lịch', chip: 'bg-indigo-100 text-indigo-700', tile: 'bg-indigo-500' },
+  ACTIVE: { label: 'Đang hoạt động', chip: 'bg-emerald-100 text-emerald-700', tile: 'bg-[#23a983]' },
+  REJECTED: { label: 'Từ chối', chip: 'bg-rose-100 text-rose-700', tile: 'bg-rose-500' },
+  SUSPENDED: { label: 'Tạm dừng', chip: 'bg-gray-200 text-gray-700', tile: 'bg-gray-500' },
+  INACTIVE: { label: 'Ngừng hoạt động', chip: 'bg-gray-100 text-gray-600', tile: 'bg-gray-400' },
 }
 
 const ROUTE_STATUSES = Object.keys(STATUS_META)
@@ -39,13 +39,13 @@ const formatOperationTime = (operationTime) => {
 }
 
 const stopLabel = (stop) => {
-  if (!stop) return 'Chua xac dinh'
-  return stop.isTerminal ? `${stop.name} (Dau/cuoi)` : stop.name
+  if (!stop) return 'Chưa xác định'
+  return stop.isTerminal ? `${stop.name} (Đầu/cuối)` : stop.name
 }
 
 const summarizeStops = (stops = []) => {
-  if (!stops.length) return 'Chua co tram'
-  return stops.slice(0, 4).map((stop) => stop.name).join(' -> ') + (stops.length > 4 ? ' ...' : '')
+  if (!stops.length) return 'Chưa có trạm'
+  return stops.slice(0, 4).map((stop) => stop.name).join(' → ') + (stops.length > 4 ? ' ...' : '')
 }
 
 function RouteViewModal({ route, onClose }) {
@@ -57,11 +57,11 @@ function RouteViewModal({ route, onClose }) {
       <div className={`flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white ${modalShadow}`}>
         <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-gray-400">Route Detail</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-gray-400">Chi tiết tuyến</p>
             <h3 className="mt-2 text-2xl font-bold text-gray-900">
-              {route.routeNumber} - {route.name || 'Tuyen chua dat ten'}
+              {route.routeNumber} - {route.name || 'Tuyến chưa đặt tên'}
             </h3>
-            <p className="mt-1 text-sm text-gray-500">Xem nhanh diem dau/cuoi, hanh trinh hai chieu va cau hinh van hanh.</p>
+            <p className="mt-1 text-sm text-gray-500">Xem nhanh điểm đầu/cuối, hành trình hai chiều và cấu hình vận hành.</p>
           </div>
           <button onClick={onClose} className="text-2xl font-bold text-gray-400 transition hover:text-gray-600">
             &times;
@@ -73,14 +73,14 @@ function RouteViewModal({ route, onClose }) {
             <section className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Diem dau</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Điểm đầu</p>
                   <p className="mt-2 font-bold text-gray-900">{stopLabel(route.startStop)}</p>
-                  <p className="mt-1 text-sm text-gray-500">{route.startStop?.address || 'Khong co dia chi'}</p>
+                  <p className="mt-1 text-sm text-gray-500">{route.startStop?.address || 'Không có địa chỉ'}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Diem cuoi</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Điểm cuối</p>
                   <p className="mt-2 font-bold text-gray-900">{stopLabel(route.endStop)}</p>
-                  <p className="mt-1 text-sm text-gray-500">{route.endStop?.address || 'Khong co dia chi'}</p>
+                  <p className="mt-1 text-sm text-gray-500">{route.endStop?.address || 'Không có địa chỉ'}</p>
                 </div>
               </div>
 
@@ -89,44 +89,44 @@ function RouteViewModal({ route, onClose }) {
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusMeta.chip}`}>{statusMeta.label}</span>
                   <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-xs font-bold text-[#23a983]">{formatMoney(route.monthlyPassPrice)}</span>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                    {route.stopCount || 0} tram chieu di
+                    {route.stopCount || 0} trạm chiều đi
                   </span>
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <div>
-                    <p className="text-sm font-semibold text-gray-500">Khung gio</p>
+                    <p className="text-sm font-semibold text-gray-500">Khung giờ</p>
                     <p className="mt-1 text-sm font-bold text-gray-900">{formatOperationTime(route.operationTime)}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-500">Tan suat / Hanh trinh / Quay dau</p>
+                    <p className="text-sm font-semibold text-gray-500">Tần suất / Hành trình / Quay đầu</p>
                     <p className="mt-1 text-sm font-bold text-gray-900">
-                      {(route.operationSettings?.tripInterval ?? route.frequencyMinutes ?? '--')} / {(route.operationSettings?.estimatedRouteDuration ?? route.roundTripMinutes ?? '--')} / {(route.operationSettings?.turnaroundTime ?? route.bufferMinutes ?? '--')} phut
+                      {(route.operationSettings?.tripInterval ?? route.frequencyMinutes ?? '--')} / {(route.operationSettings?.estimatedRouteDuration ?? route.roundTripMinutes ?? '--')} / {(route.operationSettings?.turnaroundTime ?? route.bufferMinutes ?? '--')} phút
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Mo ta</p>
-                <p className="mt-3 text-sm leading-7 text-gray-600">{route.description || 'Chua co mo ta cho tuyen nay.'}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Mô tả</p>
+                <p className="mt-3 text-sm leading-7 text-gray-600">{route.description || 'Chưa có mô tả cho tuyến này.'}</p>
               </div>
             </section>
 
             <section className="space-y-4">
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chieu di</p>
-                  <p className="mt-1 text-sm text-gray-500">So tram: {route.outboundStops?.length || 0}</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chiều đi</p>
+                  <p className="mt-1 text-sm text-gray-500">Số trạm: {route.outboundStops?.length || 0}</p>
                 </div>
                 <div className="mt-4 space-y-3">
                   {(route.outboundStops || []).length === 0 ? (
-                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chua co du lieu chieu di.</p>
+                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chưa có dữ liệu chiều đi.</p>
                   ) : (
                     route.outboundStops.map((stop, index) => (
                       <div key={`${stop.stopRefId || stop.id}-${index}`} className="rounded-2xl border border-gray-100 bg-[#f8fafc] px-4 py-3">
                         <p className="text-sm font-bold text-gray-900">{index + 1}. {stop.name}</p>
-                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Khong co dia chi'}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Không có địa chỉ'}</p>
                       </div>
                     ))
                   )}
@@ -134,16 +134,16 @@ function RouteViewModal({ route, onClose }) {
               </div>
 
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chieu ve</p>
-                <p className="mt-1 text-sm text-gray-500">So tram: {route.inboundStops?.length || 0}</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chiều về</p>
+                <p className="mt-1 text-sm text-gray-500">Số trạm: {route.inboundStops?.length || 0}</p>
                 <div className="mt-4 space-y-3">
                   {(route.inboundStops || []).length === 0 ? (
-                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chua co du lieu chieu ve.</p>
+                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chưa có dữ liệu chiều về.</p>
                   ) : (
                     route.inboundStops.map((stop, index) => (
                       <div key={`${stop.stopRefId || stop.id}-${index}`} className="rounded-2xl border border-gray-100 bg-[#f8fafc] px-4 py-3">
                         <p className="text-sm font-bold text-gray-900">{index + 1}. {stop.name}</p>
-                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Khong co dia chi'}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Không có địa chỉ'}</p>
                       </div>
                     ))
                   )}
@@ -159,7 +159,7 @@ function RouteViewModal({ route, onClose }) {
             onClick={onClose}
             className="rounded-2xl bg-[#f3f5f8] px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-200"
           >
-            Dong
+            Đóng
           </button>
         </div>
       </div>
