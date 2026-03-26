@@ -1,342 +1,436 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FaRoute, FaPlus, FaSearch, FaEye, FaEdit, FaBan, FaUndo } from 'react-icons/fa';
-import api from '../../utils/api';
-import { useDialog } from '../../context/DialogContext';
-import AuthContext from '../../context/AuthContext';
+import React, { useCallback, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  FaBan,
+  FaEdit,
+  FaEye,
+  FaMapMarkedAlt,
+  FaMapMarkerAlt,
+  FaPlus,
+  FaSearch,
+  FaUndo,
+} from 'react-icons/fa'
+import api from '../../utils/api'
+import AuthContext from '../../context/AuthContext'
+import { useDialog } from '../../context/DialogContext'
 
-const AdminRoutes = () => {
-    const [routes, setRoutes] = useState([]);
-    const { showAlert, showConfirm } = useDialog();
-    const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('');
-    const { token } = useContext(AuthContext);
-    const navigate = useNavigate();
+const STATUS_META = {
+  DRAFT: { label: 'Nháp', chip: 'bg-slate-100 text-slate-700', tile: 'bg-slate-500' },
+  PENDING_REVIEW: { label: 'Chờ duyệt', chip: 'bg-amber-100 text-amber-700', tile: 'bg-amber-500' },
+  APPROVED: { label: 'Đã duyệt', chip: 'bg-sky-100 text-sky-700', tile: 'bg-sky-500' },
+  SCHEDULED: { label: 'Lên lịch', chip: 'bg-indigo-100 text-indigo-700', tile: 'bg-indigo-500' },
+  ACTIVE: { label: 'Đang hoạt động', chip: 'bg-emerald-100 text-emerald-700', tile: 'bg-[#23a983]' },
+  REJECTED: { label: 'Từ chối', chip: 'bg-rose-100 text-rose-700', tile: 'bg-rose-500' },
+  SUSPENDED: { label: 'Tạm dừng', chip: 'bg-gray-200 text-gray-700', tile: 'bg-gray-500' },
+  INACTIVE: { label: 'Ngừng hoạt động', chip: 'bg-gray-100 text-gray-600', tile: 'bg-gray-400' },
+}
 
-    // Modal state
-    const [modalConfig, setModalConfig] = useState({ isOpen: false, type: null, route: null });
+const ROUTE_STATUSES = Object.keys(STATUS_META)
+const modalShadow = 'shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
 
-    // Form state
-    const [formData, setFormData] = useState({
-        routeNumber: '', name: '', distance: '', startTime: '', endTime: '', status: 'ACTIVE', monthlyPassPrice: 200000, description: '',
-        frequencyMinutes: 15, roundTripMinutes: 60, bufferMinutes: 10,
-    });
-    const [processing, setProcessing] = useState(false);
+const getStatusMeta = (status) => STATUS_META[status] || STATUS_META.DRAFT
+const formatMoney = (value) => `${Number(value || 0).toLocaleString('vi-VN')} d`
+const formatOperationTime = (operationTime) => {
+  if (!operationTime) return '-'
+  if (typeof operationTime === 'string') return operationTime
+  const start = operationTime.start || ''
+  const end = operationTime.end || ''
+  return start && end ? `${start} - ${end}` : '-'
+}
 
-    useEffect(() => {
-        fetchRoutes();
-    }, [statusFilter]);
+const stopLabel = (stop) => {
+  if (!stop) return 'Chưa xác định'
+  return stop.isTerminal ? `${stop.name} (Đầu/cuối)` : stop.name
+}
 
-    const fetchRoutes = async () => {
-        try {
-            setLoading(true);
-            const res = await api.get(`/api/admin/routes?status=${statusFilter}&q=${search}`);
-            if (res.data.ok) {
-                setRoutes(res.data.routes);
-            }
-        } catch (err) {
-            console.error('Error fetching routes:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+const summarizeStops = (stops = []) => {
+  if (!stops.length) return 'Chưa có trạm'
+  return stops.slice(0, 4).map((stop) => stop.name).join(' → ') + (stops.length > 4 ? ' ...' : '')
+}
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        fetchRoutes();
-    };
+function RouteViewModal({ route, onClose }) {
+  if (!route) return null
+  const statusMeta = getStatusMeta(route.status)
 
-    const openModal = (type, route = null) => {
-        setModalConfig({ isOpen: true, type, route });
-        if (type === 'create') {
-            setFormData({
-                routeNumber: '', name: '', distance: '', startTime: '', endTime: '', status: 'ACTIVE', monthlyPassPrice: 200000, description: '',
-                frequencyMinutes: 15, roundTripMinutes: 60, bufferMinutes: 10,
-            });
-        } else if (type === 'edit' && route) {
-            setFormData({
-                routeNumber: route.routeNumber,
-                name: route.name,
-                distance: route.distance,
-                startTime: route.operationTime?.start || '',
-                endTime: route.operationTime?.end || '',
-                status: route.status,
-                monthlyPassPrice: route.monthlyPassPrice,
-                description: route.description || '',
-                frequencyMinutes: route.frequencyMinutes ?? 15,
-                roundTripMinutes: route.roundTripMinutes ?? 60,
-                bufferMinutes: route.bufferMinutes ?? 10,
-            });
-        }
-    };
-
-    const closeModal = () => {
-        setModalConfig({ isOpen: false, type: null, route: null });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setProcessing(true);
-        try {
-            if (modalConfig.type === 'create') {
-                await api.post('/api/admin/routes/create', formData);
-                showAlert('Tạo tuyến thành công');
-            } else if (modalConfig.type === 'edit') {
-                await api.put(`/api/admin/routes/${modalConfig.route._id}`, formData);
-                showAlert('Cập nhật tuyến thành công');
-            }
-            closeModal();
-            fetchRoutes();
-        } catch (err) {
-            showAlert(err.response?.data?.message || 'Có lỗi xảy ra', 'Lỗi');
-        } finally {
-            setProcessing(false);
-        }
-    };
-
-    const toggleStatus = async (route) => {
-        const actionText = route.status === 'ACTIVE' ? 'tạm ngưng' : 'kích hoạt lại';
-        showConfirm(`Bạn có chắc muốn ${actionText} tuyến ${route.routeNumber}?`, async () => {
-            try {
-                const res = await api.post(`/api/admin/routes/${route._id}/toggle-status`);
-                if (res.data.ok) {
-                    setRoutes(routes.map(r => r._id === route._id ? { ...r, status: res.data.status } : r));
-                }
-            } catch (err) {
-                showAlert('Lỗi cập nhật trạng thái', 'Lỗi');
-            }
-        });
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-gray-200">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                        <FaRoute className="text-[#23a983]" /> Quản lý Tuyến xe
-                    </h1>
-                    <p className="text-gray-500 text-sm mt-1">Quản lý mạng lưới và thông tin các tuyến</p>
-                </div>
-                <div className="flex gap-2 mt-4 md:mt-0">
-                    <button
-                        onClick={() => navigate('/admin/stops')}
-                        className="bg-white border border-info text-cyan-600 px-4 py-2 rounded-lg font-semibold hover:bg-cyan-50 flex items-center gap-2"
-                    >
-                        Quản lý Trạm dừng
-                    </button>
-                    <button
-                        onClick={() => openModal('create')}
-                        className="bg-[#23a983] text-white px-4 py-2 rounded-lg font-semibold hover:bg-[#1bbd8f] flex items-center gap-2"
-                    >
-                        <FaPlus /> Thêm Tuyến
-                    </button>
-                </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
-                <form onSubmit={handleSearch} className="flex-1 flex gap-4 text-black">
-                    <div className="flex-1">
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Tìm tuyến</label>
-                        <input
-                            type="text"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Mã tuyến, tên tuyến..."
-                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 bg-white focus:ring-[#23a983] outline-none"
-                        />
-                    </div>
-                    <div className="w-1/3">
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Trạng thái</label>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.target.value); }}
-                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 bg-white focus:ring-[#23a983] outline-none"
-                        >
-                            <option value="">Tất cả</option>
-                            <option value="ACTIVE">Đang hoạt động</option>
-                            <option value="INACTIVE">Tạm ngưng</option>
-                        </select>
-                    </div>
-                    <div className="flex items-end">
-                        <button type="submit" className="bg-gray-800 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-700 flex items-center gap-2">
-                            <FaSearch /> Lọc
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden text-black">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-gray-50 text-gray-500 text-sm uppercase tracking-wider border-b border-gray-200">
-                                <th className="px-6 py-4 font-semibold">Tuyến</th>
-                                <th className="px-6 py-4 font-semibold">Cự ly</th>
-                                <th className="px-6 py-4 font-semibold">Giờ HĐ</th>
-                                <th className="px-6 py-4 font-semibold">Vé tháng</th>
-                                <th className="px-6 py-4 font-semibold">Trạng thái</th>
-                                <th className="px-6 py-4 font-semibold text-right">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {routes.length === 0 && !loading ? (
-                                <tr><td colSpan="6" className="px-6 py-10 text-center text-gray-500">Chưa có tuyến nào.</td></tr>
-                            ) : (
-                                routes.map((route) => (
-                                    <tr key={route._id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <span className={`px-3 py-1.5 rounded-md font-bold text-white text-sm ${route.status === 'ACTIVE' ? 'bg-[#23a983]' : 'bg-gray-400'}`}>
-                                                    {route.routeNumber}
-                                                </span>
-                                                <div>
-                                                    <p className="font-bold text-gray-800 text-sm">{route.name}</p>
-                                                    <p className="text-xs text-gray-500 truncate max-w-[200px]">{route.description || 'Không có mô tả'}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm">{route.distance} km</td>
-                                        <td className="px-6 py-4 text-sm text-gray-600">
-                                            {route.operationTime?.start && route.operationTime?.end
-                                                ? `${route.operationTime.start} - ${route.operationTime.end}`
-                                                : '-'}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-[#23a983]">
-                                            {Number(route.monthlyPassPrice).toLocaleString('vi-VN')} đ
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${route.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                {route.status === 'ACTIVE' ? 'HOẠT ĐỘNG' : 'TẠM NGƯNG'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-1">
-                                                <button onClick={() => openModal('view', route)} className="p-2 text-blue-600 hover:bg-blue-50 rounded transition">
-                                                    <FaEye />
-                                                </button>
-                                                <button onClick={() => openModal('edit', route)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition">
-                                                    <FaEdit />
-                                                </button>
-                                                <button onClick={() => toggleStatus(route)} className={`p-2 rounded transition ${route.status === 'ACTIVE' ? 'text-red-500 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                                                    {route.status === 'ACTIVE' ? <FaBan title="Tạm ngưng" /> : <FaUndo title="Kích hoạt lại" />}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* CREATE / EDIT / VIEW MODAL */}
-            {modalConfig.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 text-black">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-lg text-gray-800">
-                                {modalConfig.type === 'create' && 'Thêm Tuyến Mới'}
-                                {modalConfig.type === 'edit' && `Sửa Tuyến ${modalConfig.route?.routeNumber}`}
-                                {modalConfig.type === 'view' && `Chi tiết Tuyến ${modalConfig.route?.routeNumber}`}
-                            </h3>
-                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 font-bold text-xl">&times;</button>
-                        </div>
-
-                        <div className="p-6 overflow-y-auto">
-                            {modalConfig.type === 'view' ? (
-                                <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                                    <div><span className="text-gray-500 text-sm block">Mã tuyến</span><p className="font-medium">{modalConfig.route?.routeNumber}</p></div>
-                                    <div><span className="text-gray-500 text-sm block">Tên tuyến</span><p className="font-medium">{modalConfig.route?.name}</p></div>
-                                    <div><span className="text-gray-500 text-sm block">Cự ly</span><p className="font-medium">{modalConfig.route?.distance} km</p></div>
-                                    <div><span className="text-gray-500 text-sm block">Giá vé tháng</span><p className="font-medium text-[#23a983]">{Number(modalConfig.route?.monthlyPassPrice).toLocaleString()} đ</p></div>
-                                    <div><span className="text-gray-500 text-sm block">Giờ hoạt động</span><p className="font-medium">{modalConfig.route?.operationTime?.start || '-'} đến {modalConfig.route?.operationTime?.end || '-'}</p></div>
-                                    <div><span className="text-gray-500 text-sm block">Tần suất / vòng / buffer</span><p className="font-medium">{modalConfig.route?.frequencyMinutes ?? 15} phút · {modalConfig.route?.roundTripMinutes ?? 60} phút · {modalConfig.route?.bufferMinutes ?? 10} phút</p></div>
-                                    <div>
-                                        <span className="text-gray-500 text-sm block">Trạng thái</span>
-                                        <span className={`px-2 py-0.5 mt-1 block w-max text-xs font-bold rounded ${modalConfig.route?.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {modalConfig.route?.status}
-                                        </span>
-                                    </div>
-                                    <div className="col-span-2"><span className="text-gray-500 text-sm block">Mô tả</span><p className="font-medium text-sm p-3 bg-gray-50 rounded-lg whitespace-pre-wrap">{modalConfig.route?.description || 'Không'}</p></div>
-                                </div>
-                            ) : (
-                                <form id="routeForm" onSubmit={handleSubmit} className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Mã tuyến *</label>
-                                            <input type="text" required value={formData.routeNumber} onChange={e => setFormData({ ...formData, routeNumber: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" placeholder="VD: R01" />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tên tuyến *</label>
-                                            <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" placeholder="Bến xe - Trung tâm" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Cự ly (km) *</label>
-                                            <input type="number" step="0.1" required value={formData.distance} onChange={e => setFormData({ ...formData, distance: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Vé tháng</label>
-                                            <input type="number" step="1000" value={formData.monthlyPassPrice} onChange={e => setFormData({ ...formData, monthlyPassPrice: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Giờ bắt đầu</label>
-                                            <input type="time" value={formData.startTime} onChange={e => setFormData({ ...formData, startTime: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Giờ kết thúc</label>
-                                            <input type="time" value={formData.endTime} onChange={e => setFormData({ ...formData, endTime: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Tần suất (phút/chuyến)</label>
-                                            <input type="number" min="1" value={formData.frequencyMinutes} onChange={e => setFormData({ ...formData, frequencyMinutes: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Vòng tuyến (phút)</label>
-                                            <input type="number" min="1" value={formData.roundTripMinutes} onChange={e => setFormData({ ...formData, roundTripMinutes: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Buffer nghỉ (phút)</label>
-                                            <input type="number" min="0" value={formData.bufferMinutes} onChange={e => setFormData({ ...formData, bufferMinutes: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-4 text-left">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Trạng thái</label>
-                                            <select value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983] bg-white">
-                                                <option value="ACTIVE">Đang hoạt động</option>
-                                                <option value="INACTIVE">Tạm ngưng</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-1">Mô tả</label>
-                                            <textarea rows="3" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#23a983]"></textarea>
-                                        </div>
-                                    </div>
-                                </form>
-                            )}
-                        </div>
-
-                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-xl">
-                            <button type="button" onClick={closeModal} className="px-5 py-2 text-gray-600 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg font-semibold">Đóng</button>
-                            {modalConfig.type !== 'view' && (
-                                <button type="submit" form="routeForm" disabled={processing} className="px-5 py-2 bg-[#23a983] text-white hover:bg-[#1bbd8f] rounded-lg font-semibold disabled:opacity-50">
-                                    {processing ? 'Đang lưu...' : 'Lưu lại'}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 text-black">
+      <div className={`flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white ${modalShadow}`}>
+        <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-gray-400">Chi tiết tuyến</p>
+            <h3 className="mt-2 text-2xl font-bold text-gray-900">
+              {route.routeNumber} - {route.name || 'Tuyến chưa đặt tên'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">Xem nhanh điểm đầu/cuối, hành trình hai chiều và cấu hình vận hành.</p>
+          </div>
+          <button onClick={onClose} className="text-2xl font-bold text-gray-400 transition hover:text-gray-600">
+            &times;
+          </button>
         </div>
-    );
-};
 
-export default AdminRoutes;
+        <div className="overflow-y-auto px-6 py-6">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            <section className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Điểm đầu</p>
+                  <p className="mt-2 font-bold text-gray-900">{stopLabel(route.startStop)}</p>
+                  <p className="mt-1 text-sm text-gray-500">{route.startStop?.address || 'Không có địa chỉ'}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-100 bg-[#f8fafc] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">Điểm cuối</p>
+                  <p className="mt-2 font-bold text-gray-900">{stopLabel(route.endStop)}</p>
+                  <p className="mt-1 text-sm text-gray-500">{route.endStop?.address || 'Không có địa chỉ'}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusMeta.chip}`}>{statusMeta.label}</span>
+                  <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-xs font-bold text-[#23a983]">{formatMoney(route.monthlyPassPrice)}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                    {route.stopCount || 0} trạm chiều đi
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Khung giờ</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">{formatOperationTime(route.operationTime)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Tần suất / Hành trình / Quay đầu</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">
+                      {(route.operationSettings?.tripInterval ?? route.frequencyMinutes ?? '--')} / {(route.operationSettings?.estimatedRouteDuration ?? route.roundTripMinutes ?? '--')} / {(route.operationSettings?.turnaroundTime ?? route.bufferMinutes ?? '--')} phút
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Mô tả</p>
+                <p className="mt-3 text-sm leading-7 text-gray-600">{route.description || 'Chưa có mô tả cho tuyến này.'}</p>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chiều đi</p>
+                  <p className="mt-1 text-sm text-gray-500">Số trạm: {route.outboundStops?.length || 0}</p>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {(route.outboundStops || []).length === 0 ? (
+                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chưa có dữ liệu chiều đi.</p>
+                  ) : (
+                    route.outboundStops.map((stop, index) => (
+                      <div key={`${stop.stopRefId || stop.id}-${index}`} className="rounded-2xl border border-gray-100 bg-[#f8fafc] px-4 py-3">
+                        <p className="text-sm font-bold text-gray-900">{index + 1}. {stop.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Không có địa chỉ'}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-gray-400">Chiều về</p>
+                <p className="mt-1 text-sm text-gray-500">Số trạm: {route.inboundStops?.length || 0}</p>
+                <div className="mt-4 space-y-3">
+                  {(route.inboundStops || []).length === 0 ? (
+                    <p className="rounded-2xl bg-[#f8fafc] px-4 py-6 text-center text-sm text-gray-500">Chưa có dữ liệu chiều về.</p>
+                  ) : (
+                    route.inboundStops.map((stop, index) => (
+                      <div key={`${stop.stopRefId || stop.id}-${index}`} className="rounded-2xl border border-gray-100 bg-[#f8fafc] px-4 py-3">
+                        <p className="text-sm font-bold text-gray-900">{index + 1}. {stop.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">{stop.address || 'Không có địa chỉ'}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="flex justify-end border-t border-gray-100 px-6 py-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl bg-[#f3f5f8] px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-200"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AdminRoutes() {
+  const { token } = useContext(AuthContext)
+  const { showAlert, showConfirm } = useDialog()
+  const navigate = useNavigate()
+
+  const [routes, setRoutes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [selectedRoute, setSelectedRoute] = useState(null)
+
+  const fetchRoutes = useCallback(async () => {
+    try {
+      setLoading(true)
+      const params = {}
+      if (search.trim()) params.q = search.trim()
+      if (statusFilter) params.status = statusFilter
+      const res = await api.get('/api/admin/routes', { params })
+      if (res.data.ok) setRoutes(res.data.routes || [])
+    } catch (error) {
+      console.error('Error fetching routes:', error)
+      showAlert(error.response?.data?.message || 'Khong the tai danh sach tuyen', 'Loi')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, showAlert, statusFilter])
+
+  useEffect(() => {
+    fetchRoutes()
+  }, [fetchRoutes])
+
+  const handleSearch = (event) => {
+    event.preventDefault()
+    fetchRoutes()
+  }
+
+  const handleToggleStatus = (route) => {
+    const isActive = route.status === 'ACTIVE'
+    const actionText = isActive ? 'tam ngung' : 'kich hoat lai'
+
+    showConfirm(`Ban co chac muon ${actionText} tuyen ${route.routeNumber}?`, async () => {
+      try {
+        const res = await api.post(`/api/admin/routes/${route._id}/toggle-status`)
+        if (res.data.ok) {
+          setRoutes((current) => current.map((item) => (
+            item._id === route._id ? { ...item, status: res.data.status } : item
+          )))
+          if (selectedRoute?._id === route._id) {
+            setSelectedRoute((prev) => ({ ...prev, status: res.data.status }))
+          }
+          showAlert(res.data.message || 'Cap nhat trang thai thanh cong', 'Thanh cong')
+        }
+      } catch (error) {
+        showAlert(error.response?.data?.message || 'Khong the cap nhat trang thai tuyen', 'Loi')
+      }
+    }, isActive ? 'Tam ngung tuyen' : 'Kich hoat tuyen')
+  }
+
+  if (!token) return null
+
+  return (
+    <div className="space-y-6 text-black">
+      <div className="admin-page-head">
+        <div>
+          <h1 className="flex items-center gap-3 text-3xl font-bold text-gray-900">
+            <FaMapMarkedAlt className="text-[#23a983]" />
+            Quan ly tuyen xe
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Dong bo workflow route, diem dau/cuoi, hanh trinh hai chieu va metadata van hanh.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => navigate('/admin/stops')}
+            className="rounded-2xl bg-white px-4 py-2.5 font-semibold text-cyan-700 transition hover:bg-cyan-50"
+            style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+          >
+            Quan ly tram dung
+          </button>
+          <button
+            onClick={() => navigate('/admin/routes/create')}
+            className="inline-flex items-center gap-2 rounded-2xl bg-[#23a983] px-4 py-2.5 font-semibold text-white transition hover:bg-[#1bbd8f]"
+          >
+            <FaPlus />
+            Tao tuyen moi
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6">
+          <div className="admin-toolbar">
+            <form onSubmit={handleSearch} className="grid gap-4 md:grid-cols-[minmax(0,1fr)_260px_auto]">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Tim tuyen</label>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Ma tuyen, ten tuyen, mo ta..."
+                  className="w-full rounded-2xl border border-gray-200 bg-[#f8fafc] px-4 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Trang thai</label>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-[#f8fafc] px-4 py-2.5 outline-none transition focus:border-[#23a983] focus:bg-white"
+                >
+                  <option value="">Tat ca</option>
+                  {ROUTE_STATUSES.map((status) => (
+                    <option key={status} value={status}>{STATUS_META[status].label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button type="submit" className="inline-flex items-center gap-2 rounded-2xl bg-gray-900 px-5 py-2.5 font-semibold text-white transition hover:bg-gray-800">
+                  <FaSearch />
+                  Loc
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="admin-surface overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-6">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Danh sach tuyen</h2>
+                <p className="mt-1 text-sm text-gray-500">Tong hop route code, diem dau/cuoi, hanh trinh, gia ve va workflow.</p>
+              </div>
+              {loading ? <span className="text-sm text-gray-500">Dang tai...</span> : null}
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.18em] text-gray-400">
+                    <th className="px-6 py-3 font-semibold">Tuyen</th>
+                    <th className="px-6 py-3 font-semibold">Dau / Cuoi</th>
+                    <th className="px-6 py-3 font-semibold">Hanh trinh</th>
+                    <th className="px-6 py-3 font-semibold">Van hanh</th>
+                    <th className="px-6 py-3 font-semibold">Trang thai</th>
+                    <th className="px-6 py-3 text-right font-semibold">Thao tac</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {!loading && routes.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                        Chua co tuyen nao phu hop bo loc hien tai.
+                      </td>
+                    </tr>
+                  ) : (
+                    routes.map((route) => {
+                      const statusMeta = getStatusMeta(route.status)
+                      return (
+                        <tr key={route._id} className="transition-colors hover:bg-[#fbfcfd]">
+                          <td className="px-6 py-4">
+                            <div className="flex items-start gap-3">
+                              <span className={`rounded-2xl px-3 py-1.5 text-sm font-bold text-white ${statusMeta.tile}`}>
+                                {route.routeNumber}
+                              </span>
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{route.name || 'Tuyen chua dat ten'}</p>
+                                <p className="mt-2 max-w-[260px] text-xs text-gray-500">{route.description || 'Khong co mo ta'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-900">{stopLabel(route.startStop)}</p>
+                            <p className="mt-1 text-xs text-gray-500">{stopLabel(route.endStop)}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-900">{route.stopCount || 0} tram chieu di</p>
+                            <p className="mt-1 max-w-[260px] text-xs text-gray-500">{summarizeStops(route.outboundStops)}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-semibold text-gray-900">{formatOperationTime(route.operationTime)}</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {formatMoney(route.monthlyPassPrice)} · {Number(route.distance || 0).toLocaleString('vi-VN')} km
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusMeta.chip}`}>{statusMeta.label}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                onClick={() => setSelectedRoute(route)}
+                                className="rounded-xl p-2 text-blue-600 transition hover:bg-blue-50"
+                                title="Xem chi tiet"
+                              >
+                                <FaEye />
+                              </button>
+                              <button
+                                onClick={() => navigate(`/admin/routes/${route._id}/edit`)}
+                                className="rounded-xl p-2 text-indigo-600 transition hover:bg-indigo-50"
+                                title="Chinh sua"
+                              >
+                                <FaEdit />
+                              </button>
+                              {['ACTIVE', 'INACTIVE'].includes(route.status) ? (
+                                <button
+                                  onClick={() => handleToggleStatus(route)}
+                                  className={`rounded-xl p-2 transition ${route.status === 'ACTIVE' ? 'text-red-500 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}
+                                  title={route.status === 'ACTIVE' ? 'Tam ngung' : 'Kich hoat'}
+                                >
+                                  {route.status === 'ACTIVE' ? <FaBan /> : <FaUndo />}
+                                </button>
+                              ) : (
+                                <span className="rounded-xl bg-gray-100 p-2 text-gray-400" title="Workflow lock">
+                                  <FaBan />
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <aside className="space-y-4">
+          <div className="admin-surface p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Workflow</p>
+            <div className="mt-4 space-y-3">
+              {ROUTE_STATUSES.map((status) => (
+                <div key={status} className="flex items-center gap-3 rounded-2xl bg-[#f8fafc] px-4 py-3">
+                  <span className={`h-3 w-3 rounded-full ${STATUS_META[status].tile}`} />
+                  <span className="text-sm font-semibold text-gray-700">{STATUS_META[status].label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="admin-surface p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Tac vu nhanh</p>
+            <div className="mt-4 space-y-3 text-sm text-gray-600">
+              <div className="rounded-2xl bg-[#f8fafc] px-4 py-4">
+                <p className="font-semibold text-gray-900">Route builder</p>
+                <p className="mt-1">Form tao/chinh sua ho tro 2 chieu, metadata van hanh va preview map.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/routes/create')}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#23a983] px-4 py-3 font-semibold text-[#23a983] transition hover:bg-[#ecfdf5]"
+              >
+                <FaMapMarkerAlt />
+                Tao route builder moi
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {selectedRoute ? (
+        <RouteViewModal route={selectedRoute} onClose={() => setSelectedRoute(null)} />
+      ) : null}
+    </div>
+  )
+}

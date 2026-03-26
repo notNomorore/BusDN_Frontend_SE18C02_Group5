@@ -1,14 +1,17 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 
+const projectDir = fileURLToPath(new URL('.', import.meta.url))
+
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  // eslint-disable-next-line no-undef
-  const env = loadEnv(mode, process.cwd(), '')
-  
-  // Đọc từ .env, fallback về 3000 nếu không có
-  const API_PORT = env.VITE_API_PORT || '3000'
-  const API_URL = env.VITE_API_URL || `http://localhost:${API_PORT}`
+  const env = loadEnv(mode, projectDir, '')
+  const apiPort = env.VITE_API_PORT || '3000'
+  const apiUrl = env.VITE_API_URL || `http://127.0.0.1:${apiPort}`
+  const proxyTarget = {
+    target: apiUrl,
+    changeOrigin: true,
+  }
 
   return {
     plugins: [
@@ -17,13 +20,35 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: API_URL,
-          changeOrigin: true,
+          ...proxyTarget,
+        },
+        '/register-step1': {
+          ...proxyTarget,
+        },
+        '/register-step2': {
+          ...proxyTarget,
+        },
+        '/verify-otp': {
+          ...proxyTarget,
+        },
+        '/create-password': {
+          ...proxyTarget,
+        },
+        '/resend-otp': {
+          ...proxyTarget,
+        },
+        '/forgot-password': {
+          ...proxyTarget,
+        },
+        '/reset-password': {
+          ...proxyTarget,
         },
         '/socket.io': {
-          target: API_URL,
+          ...proxyTarget,
           ws: true,
-          changeOrigin: true,
+        },
+        '/passenger': {
+          ...proxyTarget,
         }
       }
     }

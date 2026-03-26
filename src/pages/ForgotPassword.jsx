@@ -23,12 +23,8 @@ const ForgotPassword = () => {
 
         try {
             const { data } = await api.post('/api/auth/forgot-password', { email });
-            if (data.ok) {
-                setMessage(data.message || 'OTP sent to your email.');
-                setStep(2);
-            } else {
-                setError(data.message || 'Failed to send OTP.');
-            }
+            setMessage(data.message || 'OTP sent to your email.');
+            setStep(2);
         } catch (err) {
             setError(err.response?.data?.message || 'Error connecting to server.');
         } finally {
@@ -48,14 +44,10 @@ const ForgotPassword = () => {
                 otp,
                 newPassword
             });
-            if (data.ok) {
-                setMessage('Password reset successfully! Redirecting to login...');
-                setTimeout(() => {
-                    navigate('/login');
-                }, 2000);
-            } else {
-                setError(data.message || 'Failed to reset password.');
-            }
+            setMessage(data.message || 'Password reset successfully! Redirecting to login...');
+            setTimeout(() => {
+                navigate('/login?reset=1');
+            }, 2000);
         } catch (err) {
             setError(err.response?.data?.message || 'Error connecting to server.');
         } finally {
