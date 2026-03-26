@@ -1,8 +1,45 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { FaIdCard, FaCheck, FaTimes, FaEye } from 'react-icons/fa';
+import { FaIdCard, FaCheck, FaTimes, FaEye, FaDownload, FaFileAlt, FaEnvelope, FaPhone, FaUser, FaCalendarAlt, FaInfoCircle } from 'react-icons/fa';
 import api from '../../utils/api';
 import AuthContext from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
+
+const PRIORITY_DOCUMENTS = [
+    { label: 'Mặt trước thẻ', field: 'idCardImageFront', icon: FaIdCard },
+    { label: 'Mặt sau thẻ', field: 'idCardImageBack', icon: FaIdCard },
+    { label: 'Minh chứng ưu tiên', field: 'proofImage', icon: FaFileAlt },
+];
+
+const STATUS_META = {
+    pending: { label: 'Chờ duyệt', className: 'bg-amber-100 text-amber-700' },
+    approved: { label: 'Đã duyệt', className: 'bg-emerald-100 text-emerald-700' },
+    rejected: { label: 'Đã từ chối', className: 'bg-red-100 text-red-700' },
+};
+
+const DEFAULT_STATUS_META = { label: '--', className: 'bg-slate-100 text-slate-600' };
+
+const getStatusMeta = (status) => STATUS_META[String(status || '').toLowerCase()] || DEFAULT_STATUS_META;
+
+const getLocalDateInputValue = (date = new Date()) => {
+    const value = new Date(date);
+    const offsetMinutes = value.getTimezoneOffset();
+    const local = new Date(value.getTime() - offsetMinutes * 60 * 1000);
+    return local.toISOString().slice(0, 10);
+};
+
+const getPriorityFileUrl = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
+    return `/uploads/priority/${raw}`;
+};
+
+const extractFileName = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const withoutQuery = raw.split('?')[0];
+    return decodeURIComponent(withoutQuery.split('/').pop() || '');
+};
 
 const AdminPriorityProfiles = () => {
     const { showAlert } = useDialog();
@@ -13,6 +50,7 @@ const AdminPriorityProfiles = () => {
 
     const [selectedProfile, setSelectedProfile] = useState(null);
     const [actionType, setActionType] = useState(null); // 'approve' or 'reject'
+    const [detailProfile, setDetailProfile] = useState(null);
     const [expiryDate, setExpiryDate] = useState('');
     const [rejectionReason, setRejectionReason] = useState('');
     const [processing, setProcessing] = useState(false);
@@ -38,12 +76,13 @@ const AdminPriorityProfiles = () => {
     const getMinExpiryDateString = () => {
         const d = new Date();
         d.setFullYear(d.getFullYear() + 2);
-        return d.toISOString().split('T')[0];
+        return getLocalDateInputValue(d);
     };
 
     const openModal = (profile, type) => {
         setSelectedProfile(profile);
         setActionType(type);
+        setDetailProfile(null);
         if (type === 'approve') {
             setExpiryDate(getMinExpiryDateString());
         } else {
@@ -51,9 +90,37 @@ const AdminPriorityProfiles = () => {
         }
     };
 
+    const openDetail = (profile) => {
+        setDetailProfile(profile);
+        setSelectedProfile(null);
+        setActionType(null);
+    };
+
     const closeModal = () => {
         setSelectedProfile(null);
         setActionType(null);
+    };
+
+    const closeDetail = () => {
+        setDetailProfile(null);
+    };
+
+    const openPriorityFile = (value) => {
+        const url = getPriorityFileUrl(value);
+        if (!url) return;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    const downloadPriorityFile = (value, fallbackName = '') => {
+        const url = getPriorityFileUrl(value);
+        if (!url) return;
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fallbackName || extractFileName(url) || 'priority-file';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
     };
 
     const submitAction = async () => {
@@ -123,7 +190,7 @@ const AdminPriorityProfiles = () => {
                         <tbody className="divide-y divide-gray-100">
                             {profiles.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-10 text-center text-gray-500">Khống có hồ sơ nào.</td>
+                                    <td colSpan="5" className="px-6 py-10 text-center text-gray-500">Không có hồ sơ nào.</td>
                                 </tr>
                             ) : (
                                 profiles.map((profile) => (
@@ -148,31 +215,31 @@ const AdminPriorityProfiles = () => {
                                         <td className="px-6 py-4">
                                             <p className="text-sm text-gray-600">{new Date(profile.createdAt).toLocaleDateString('vi-VN')}</p>
                                         </td>
-                                        <td className="px-6 py-4 text-center flex justify-center gap-2">
-                                            {/* We simulate 'View' opening the modal too for now, or just showing actions */}
-                                            {profile.status === 'pending' ? (
-                                                <>
-                                                    <button
-                                                        onClick={() => openModal(profile, 'approve')}
-                                                        className="bg-green-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-green-600 flex items-center gap-1"
-                                                    >
-                                                        <FaCheck /> Duyệt
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openModal(profile, 'reject')}
-                                                        className="bg-red-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-red-600 flex items-center gap-1"
-                                                    >
-                                                        <FaTimes /> Từ chối
-                                                    </button>
-                                                </>
-                                            ) : (
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex flex-wrap justify-center gap-2">
                                                 <button
-                                                    onClick={() => showAlert('Chức năng xem chi tiết sẽ được cập nhật sau', 'Thông báo')}
-                                                    className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-md text-sm font-semibold hover:bg-blue-100 flex items-center gap-1"
+                                                    onClick={() => openDetail(profile)}
+                                                    className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-100"
                                                 >
                                                     <FaEye /> Xem
                                                 </button>
-                                            )}
+                                                {profile.status === 'pending' ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => openModal(profile, 'approve')}
+                                                            className="inline-flex items-center gap-1 rounded-md bg-green-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-green-600"
+                                                        >
+                                                            <FaCheck /> Duyệt
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openModal(profile, 'reject')}
+                                                            className="inline-flex items-center gap-1 rounded-md bg-red-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-red-600"
+                                                        >
+                                                            <FaTimes /> Từ chối
+                                                        </button>
+                                                    </>
+                                                ) : null}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -181,6 +248,143 @@ const AdminPriorityProfiles = () => {
                     </table>
                 </div>
             </div>
+
+            {detailProfile ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6 text-black">
+                    <div className="flex w-full max-w-6xl max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Chi tiết hồ sơ ưu tiên</p>
+                                <h3 className="mt-2 text-2xl font-black text-slate-900">
+                                    {detailProfile.userId?.fullName || 'Khách hàng'}
+                                </h3>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {detailProfile.userId?.email || detailProfile.userId?.phone || 'Không có thông tin liên hệ'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={closeDetail}
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                                aria-label="Đóng"
+                            >
+                                <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6">
+                            <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,5fr)]">
+                                <section className="rounded-2xl border border-slate-100 bg-slate-50 p-5 shadow-sm">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Thông tin hồ sơ</p>
+                                            <h4 className="mt-1 text-lg font-black text-slate-900">Tổng quan nhanh</h4>
+                                        </div>
+                                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusMeta(detailProfile.status).className}`}>
+                                            {getStatusMeta(detailProfile.status).label}
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                        {[
+                                            { label: 'Khách hàng', value: detailProfile.userId?.fullName || 'N/A', icon: FaUser },
+                                            { label: 'Liên hệ', value: detailProfile.userId?.email || detailProfile.userId?.phone || '--', icon: detailProfile.userId?.email ? FaEnvelope : FaPhone },
+                                            { label: 'Loại ưu tiên', value: detailProfile.category || 'N/A', icon: FaIdCard },
+                                            { label: 'Số thẻ', value: detailProfile.idNumber || 'N/A', icon: FaIdCard },
+                                            { label: 'Ngày nộp', value: detailProfile.createdAt ? new Date(detailProfile.createdAt).toLocaleDateString('vi-VN') : '--', icon: FaCalendarAlt },
+                                            { label: 'Ngày hết hạn', value: detailProfile.expiryDate ? new Date(detailProfile.expiryDate).toLocaleDateString('vi-VN') : '--', icon: FaCalendarAlt },
+                                        ].map(({ label, value, icon: Icon }) => (
+                                            <div key={label} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                                                    <Icon className="text-slate-400" />
+                                                    <span>{label}</span>
+                                                </div>
+                                                <p className="mt-3 break-words text-sm font-black text-slate-900">{value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {detailProfile.rejectionReason ? (
+                                        <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4">
+                                            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-red-500">
+                                                <FaInfoCircle />
+                                                Lý do từ chối
+                                            </div>
+                                            <p className="mt-2 text-sm leading-6 text-red-700">{detailProfile.rejectionReason}</p>
+                                        </div>
+                                    ) : null}
+                                </section>
+
+                                <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Tài liệu đã nộp</p>
+                                            <h4 className="mt-1 text-lg font-black text-slate-900">Xem hoặc tải lại từng ảnh minh chứng</h4>
+                                        </div>
+                                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
+                                            3 tài liệu
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                        {PRIORITY_DOCUMENTS.map(({ label, field, icon: Icon }) => {
+                                            const fileValue = detailProfile?.[field];
+                                            const fileUrl = getPriorityFileUrl(fileValue);
+                                            const fileName = extractFileName(fileValue);
+                                            const hasFile = Boolean(fileUrl);
+
+                                            return (
+                                                <div key={field} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                                                            <Icon className="text-lg" />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">{label}</p>
+                                                            <p className="mt-2 break-words text-sm font-medium leading-6 text-slate-700">
+                                                                {fileName || 'Chưa có file'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openPriorityFile(fileValue)}
+                                                            disabled={!hasFile}
+                                                            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition ${
+                                                                hasFile
+                                                                    ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                                                    : 'cursor-not-allowed bg-slate-200 text-slate-400'
+                                                            }`}
+                                                        >
+                                                            <FaEye />
+                                                            Xem
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => downloadPriorityFile(fileValue, fileName)}
+                                                            disabled={!hasFile}
+                                                            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                                                                hasFile
+                                                                    ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                                                                    : 'cursor-not-allowed border-slate-200 bg-white text-slate-300'
+                                                            }`}
+                                                        >
+                                                            <FaDownload />
+                                                            Tải xuống
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {/* Action Modals */}
             {selectedProfile && actionType && (

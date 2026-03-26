@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiArrowRight, FiCheckCircle, FiEye, FiEyeOff, FiLock } from 'react-icons/fi';
 import AuthShell from '../../components/auth/AuthShell';
+import RegistrationContactSummary from '../../components/auth/RegistrationContactSummary';
 import api from '../../utils/api';
 import {
   PASSWORD_RULES,
@@ -106,24 +107,16 @@ const RegisterCreatePassword = () => {
     >
       {error ? <div className="auth-status-banner error">{error}</div> : null}
 
-      <div className="auth-surface-card relative overflow-hidden">
-        <div className="absolute right-0 top-0 p-4 opacity-5">
+      <div className="relative">
+        <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-[0.06]">
           <FiLock className="text-[84px]" />
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#426656]">Name</span>
-            <span className="mt-1 text-sm font-semibold text-[#001a0f]">{registrationState.fullName}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#426656]">Contact</span>
-            <span className="mt-1 text-sm font-semibold text-[#001a0f]">{registrationState.contactValue}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#426656]">Method</span>
-            <span className="mt-1 text-sm font-semibold text-[#001a0f]">{registrationState.contactType}</span>
-          </div>
-        </div>
+        <RegistrationContactSummary
+          fullName={registrationState.fullName}
+          contactValue={registrationState.contactValue}
+          contactType={registrationState.contactType}
+          eyebrow="Verified destination"
+        />
       </div>
 
       <form onSubmit={handleSubmit} className="auth-form-card flex flex-col gap-5">

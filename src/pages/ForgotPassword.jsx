@@ -22,7 +22,8 @@ const ForgotPassword = () => {
         setError('');
 
         try {
-            const { data } = await api.post('/api/auth/forgot-password', { email });
+            const normalizedEmail = email.trim().toLowerCase();
+            const { data } = await api.post('/api/auth/forgot-password', { email: normalizedEmail });
             setMessage(data.message || 'OTP sent to your email.');
             setStep(2);
         } catch (err) {
@@ -40,8 +41,8 @@ const ForgotPassword = () => {
 
         try {
             const { data } = await api.post('/api/auth/reset-password', {
-                email,
-                otp,
+                email: email.trim().toLowerCase(),
+                otp: otp.trim(),
                 newPassword
             });
             setMessage(data.message || 'Password reset successfully! Redirecting to login...');

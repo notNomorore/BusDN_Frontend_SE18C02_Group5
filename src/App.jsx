@@ -37,6 +37,7 @@ import FareMatrix from './pages/admin/FareMatrix'
 import RevenueReports from './pages/admin/RevenueReports'
 import AdminFeedback from './pages/admin/AdminFeedback'
 import AdminPromotions from './pages/admin/AdminPromotions'
+import AdminPromotionHistory from './pages/admin/AdminPromotionHistory'
 import DriverLayout from './pages/driver/DriverLayout'
 import ViewSchedule from './pages/driver/ViewSchedule'
 import TripControl from './pages/driver/TripControl'
@@ -128,6 +129,7 @@ function AppContent() {
             <Route path="reports" element={<RevenueReports />} />
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="promotions" element={<AdminPromotions />} />
+            <Route path="promotions/history" element={<AdminPromotionHistory />} />
           </Route>
 
           <Route path="/driver" element={<DriverLayout />}>

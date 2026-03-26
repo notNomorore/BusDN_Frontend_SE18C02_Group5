@@ -21,6 +21,22 @@ import {
 import AuthContext from '../../context/AuthContext'
 import api from '../../utils/api'
 
+const DEFAULT_AVATAR = '/assets/default-avatar.svg'
+
+const resolveAvatarSrc = (avatar) => {
+  const value = String(avatar || '').trim()
+  if (
+    !value ||
+    value === '/images/default-avatar.png' ||
+    value === '/images/default-avatar.svg' ||
+    value === '/assets/default-avatar.svg'
+  ) {
+    return DEFAULT_AVATAR
+  }
+
+  return value
+}
+
 const AdminLayout = () => {
   const { userRole, token, logout } = useContext(AuthContext)
   const location = useLocation()
@@ -66,18 +82,16 @@ const AdminLayout = () => {
   }
 
   const navItemClass = (active) => (
-    `mx-3 flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
-      active
-        ? 'bg-[#495057] text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
-        : 'text-gray-300 hover:bg-[#495057] hover:text-white'
+    `mx-3 flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${active
+      ? 'bg-[#495057] text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
+      : 'text-gray-300 hover:bg-[#495057] hover:text-white'
     }`
   )
 
   const subNavItemClass = (active) => (
-    `mx-3 flex items-center gap-3 rounded-lg pl-11 pr-4 py-2.5 text-sm transition-all ${
-      active
-        ? 'bg-[#3b4249] text-white'
-        : 'text-gray-400 hover:bg-[#3b4249] hover:text-white'
+    `mx-3 flex items-center gap-3 rounded-lg pl-11 pr-4 py-2.5 text-sm transition-all ${active
+      ? 'bg-[#3b4249] text-white'
+      : 'text-gray-400 hover:bg-[#3b4249] hover:text-white'
     }`
   )
 
@@ -115,44 +129,15 @@ const AdminLayout = () => {
             ))}
 
             <li className="pt-1">
-              <button
-                onClick={() => setShowStaffSubmenu((current) => !current)}
-                className={`${navItemClass(path.includes('/admin/staff'))} w-[calc(100%-1.5rem)] justify-between`}
+              <Link
+                to="/admin/staff"
+                className={`${navItemClass(path.includes('/admin/staff'))} justify-between`}
               >
                 <span className="flex items-center gap-3">
                   <FaUsersCog className="w-5 h-5" />
-                  <span>Nhan su</span>
+                  <span>Quản lý tài khoản</span>
                 </span>
-                <span
-                  className="text-xs transition-transform duration-200"
-                  style={{ transform: showStaffSubmenu ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                >
-                  ▼
-                </span>
-              </button>
-
-              {showStaffSubmenu ? (
-                <ul className="mt-2 space-y-1">
-                  <li>
-                    <Link to="/admin/staff" className={subNavItemClass(path === '/admin/staff')}>
-                      <FaList />
-                      Danh sach
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/admin/staff/create" className={subNavItemClass(path === '/admin/staff/create')}>
-                      <FaUserPlus />
-                      Tao tai khoan
-                    </Link>
-                  </li>
-                  <li>
-                    <Link to="/admin/staff/import" className={subNavItemClass(path === '/admin/staff/import')}>
-                      <FaFileImport />
-                      Import file
-                    </Link>
-                  </li>
-                </ul>
-              ) : null}
+              </Link>
             </li>
 
             <li className="pt-1">
@@ -193,7 +178,15 @@ const AdminLayout = () => {
           <div className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-3">
             <div className="h-10 w-10 overflow-hidden rounded-full bg-gray-500">
               {user?.avatar ? (
-                <img src={user.avatar} alt="Avatar" className="h-full w-full object-cover" />
+                <img
+                  src={resolveAvatarSrc(user.avatar)}
+                  alt="Avatar"
+                  className="h-full w-full object-cover"
+                  onError={(event) => {
+                    event.currentTarget.onerror = null
+                    event.currentTarget.src = DEFAULT_AVATAR
+                  }}
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-sm font-bold">
                   {user?.fullName?.charAt(0) || 'A'}
