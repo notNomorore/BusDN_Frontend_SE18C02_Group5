@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LuBus, LuUser } from "react-icons/lu";
+import { LuBus, LuUser, LuTicket } from "react-icons/lu";
 import { IoIosSearch } from "react-icons/io";
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -52,6 +52,16 @@ const Navbar = () => {
           >
             <LuBus className="text-lg mr-1" />
             Track Bus
+          </Link>
+
+          <Link
+            to="/trip-ticket"
+            className={`hidden md:flex items-center rounded-md px-4 py-2 font-medium transition
+              ${location.pathname === '/trip-ticket' ? 'bg-green-50 text-[#23a983]' : 'hover:bg-green-50 hover:text-[#23a983]'}
+            `}
+          >
+            <LuTicket className="text-lg mr-1" />
+            Vé lẻ
           </Link>
         </>
       )}

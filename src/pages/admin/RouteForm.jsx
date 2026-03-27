@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FaArrowDown, FaArrowLeft, FaArrowUp, FaPaperPlane, FaSave, FaTimes } from 'react-icons/fa'
+import { FaArrowDown, FaArrowLeft, FaArrowUp, FaPaperPlane, FaPlus, FaSave, FaTimes } from 'react-icons/fa'
 import { MapContainer, Marker, Polyline, TileLayer, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -50,6 +50,7 @@ const EMPTY_FORM = {
   endPoint: '',
   description: '',
   effectiveDate: '',
+  monthlyPassPrice: 200000,
   distance: '',
   startTime: '05:00',
   endTime: '22:00',
@@ -269,6 +270,7 @@ export default function RouteForm() {
               endPoint: route.endStop?._id || route.endStop?.id || '',
               description: route.description || '',
               effectiveDate: route.effectiveDate ? String(route.effectiveDate).slice(0, 10) : '',
+              monthlyPassPrice: route.monthlyPassPrice ?? 200000,
               distance: route.distance || '',
               startTime: route.operationSettings?.startTime || route.operationTime?.start || '05:00',
               endTime: route.operationSettings?.endTime || route.operationTime?.end || '22:00',
@@ -476,8 +478,8 @@ export default function RouteForm() {
       <div className="flex items-center gap-4">
         <button onClick={() => navigate('/admin/routes')} className="rounded-xl p-2 text-gray-500 hover:bg-gray-100"><FaArrowLeft /></button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{isEdit ? 'Chỉnh sửa tuyến' : 'Tạo tuyến mới'}</h1>
-          <p className="mt-0.5 text-sm text-gray-500">{isEdit ? `Đang sửa tuyến ${form.routeCode}` : 'Điền thông tin để tạo tuyến xe buýt mới'}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{isEdit ? 'Chinh sua tuyen' : 'Tao tuyen moi'}</h1>
+          <p className="mt-0.5 text-sm text-gray-500">{isEdit ? `Dang sua tuyen ${form.routeCode}` : 'Dien thong tin de tao tuyen xe buyt moi'}</p>
         </div>
       </div>
       {errors.length ? <div className="rounded-xl bg-red-50 px-4 py-3"><p className="mb-1 text-sm font-semibold text-red-700">Vui lòng kiểm tra lại:</p><ul className="list-inside list-disc space-y-0.5 text-sm text-red-600">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></div> : null}

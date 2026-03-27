@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useCallback, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FaCheck,
@@ -48,10 +48,10 @@ const stopLabel = (stop) => {
 
 const summarizeStops = (stops = []) => {
   if (!stops.length) return 'Chưa có trạm'
-  return stops.slice(0, 3).map((stop) => stop.name).join(' -> ') + (stops.length > 3 ? ' ...' : '')
+  return stops.slice(0, 4).map((stop) => stop.name).join(' → ') + (stops.length > 4 ? ' ...' : '')
 }
 
-const RouteViewModal = ({ route, onClose }) => {
+function RouteViewModal({ route, onClose }) {
   if (!route) return null
   const statusMeta = getStatusMeta(route.status)
 
@@ -163,7 +163,11 @@ const RouteViewModal = ({ route, onClose }) => {
         </div>
 
         <div className="flex justify-end border-t border-gray-100 px-6 py-5">
-          <button type="button" onClick={onClose} className="rounded-2xl bg-[#f3f5f8] px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-200">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl bg-[#f3f5f8] px-5 py-2.5 font-semibold text-gray-700 transition hover:bg-gray-200"
+          >
             Đóng
           </button>
         </div>
@@ -172,7 +176,7 @@ const RouteViewModal = ({ route, onClose }) => {
   )
 }
 
-const AdminRoutes = () => {
+export default function AdminRoutes() {
   const { token } = useContext(AuthContext)
   const { showAlert, showConfirm } = useDialog()
   const navigate = useNavigate()
@@ -183,18 +187,13 @@ const AdminRoutes = () => {
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedRoute, setSelectedRoute] = useState(null)
 
-  useEffect(() => {
-    fetchRoutes()
-  }, [statusFilter])
-
-  const fetchRoutes = async () => {
+  const fetchRoutes = useCallback(async () => {
     try {
       setLoading(true)
-      const params = new URLSearchParams()
-      if (search.trim()) params.set('q', search.trim())
-      if (statusFilter) params.set('status', statusFilter)
-      const query = params.toString()
-      const res = await api.get(`/api/admin/routes${query ? `?${query}` : ''}`)
+      const params = {}
+      if (search.trim()) params.q = search.trim()
+      if (statusFilter) params.status = statusFilter
+      const res = await api.get('/api/admin/routes', { params })
       if (res.data.ok) setRoutes(res.data.routes || [])
     } catch (error) {
       console.error('Error fetching routes:', error)
@@ -202,7 +201,11 @@ const AdminRoutes = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search, showAlert, statusFilter])
+
+  useEffect(() => {
+    fetchRoutes()
+  }, [fetchRoutes])
 
   const handleSearch = (event) => {
     event.preventDefault()
@@ -262,7 +265,7 @@ const AdminRoutes = () => {
       } catch (error) {
         showAlert(error.response?.data?.message || 'Không thể từ chối tuyến', 'Lỗi')
       }
-    })
+    }, isActive ? 'Tam ngung tuyen' : 'Kich hoat tuyen')
   }
 
   if (!token) return null
@@ -389,7 +392,7 @@ const AdminRoutes = () => {
                           <td className="px-6 py-4">
                             <p className="text-sm font-semibold text-gray-900">{formatOperationTime(route.operationTime)}</p>
                             <p className="mt-1 text-xs text-gray-500">
-                              {formatMoney(route.monthlyPassPrice)} · {(route.distance || 0).toLocaleString('vi-VN')} km
+                              {formatMoney(route.monthlyPassPrice)} · {Number(route.distance || 0).toLocaleString('vi-VN')} km
                             </p>
                           </td>
                           <td className="px-6 py-4">
@@ -474,5 +477,3 @@ const AdminRoutes = () => {
     </div>
   )
 }
-
-export default AdminRoutes

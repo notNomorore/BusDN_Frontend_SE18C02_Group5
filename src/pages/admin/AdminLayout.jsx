@@ -43,7 +43,7 @@ const AdminLayout = () => {
   const navigate = useNavigate()
   const path = location.pathname
 
-  const [pendingCount, setPendingCount] = useState(0)
+  const [pendingCount] = useState(0)
   const [showStaffSubmenu, setShowStaffSubmenu] = useState(false)
   const [user, setUser] = useState(null)
 
@@ -96,14 +96,14 @@ const AdminLayout = () => {
   )
 
   const menuItems = [
-    { name: 'Tong quan', path: '/admin/dashboard', icon: <FaTachometerAlt className="w-5 h-5" /> },
-    { name: 'Quan ly tuyen', path: '/admin/routes', icon: <FaMapMarkedAlt className="w-5 h-5" /> },
-    { name: 'Dieu phoi lich', path: '/admin/schedules', icon: <FaCalendarAlt className="w-5 h-5" /> },
-    { name: 'Giam sat doi xe', path: '/admin/fleet-status', icon: <FaBus className="w-5 h-5" /> },
-    { name: 'Nhat ky chuyen', path: '/admin/trip-logs', icon: <FaClipboardList className="w-5 h-5" /> },
-    { name: 'Lost and found', path: '/admin/lost-and-found', icon: <FaBoxOpen className="w-5 h-5" /> },
-    { name: 'Thong bao', path: '/admin/broadcast', icon: <FaBullhorn className="w-5 h-5" /> },
-    { name: 'Bang gia ve', path: '/admin/fare-matrix', icon: <FaDollarSign className="w-5 h-5" /> },
+    { name: 'Tổng quan', path: '/admin/dashboard', icon: <FaTachometerAlt className="w-5 h-5" /> },
+    { name: 'Quản lý tuyến', path: '/admin/routes', icon: <FaMapMarkedAlt className="w-5 h-5" /> },
+    { name: 'Điều phối lịch', path: '/admin/schedules', icon: <FaCalendarAlt className="w-5 h-5" /> },
+    { name: 'Giám sát đội xe', path: '/admin/fleet-status', icon: <FaBus className="w-5 h-5" /> },
+    { name: 'Nhật ký chuyến', path: '/admin/trip-logs', icon: <FaClipboardList className="w-5 h-5" /> },
+    { name: 'Đồ thất lạc', path: '/admin/lost-and-found', icon: <FaBoxOpen className="w-5 h-5" /> },
+    { name: 'Thông báo', path: '/admin/broadcast', icon: <FaBullhorn className="w-5 h-5" /> },
+    { name: 'Bảng giá vé', path: '/admin/fare-matrix', icon: <FaDollarSign className="w-5 h-5" /> },
   ]
 
   if (!token || (userRole !== 'ADMIN' && userRole !== 'STAFF')) return null
@@ -129,22 +129,53 @@ const AdminLayout = () => {
             ))}
 
             <li className="pt-1">
-              <Link
-                to="/admin/staff"
-                className={`${navItemClass(path.includes('/admin/staff'))} justify-between`}
+              <button
+                type="button"
+                onClick={() => setShowStaffSubmenu((v) => !v)}
+                className={`${navItemClass(path.includes('/admin/staff'))} w-[calc(100%-1.5rem)] justify-between`}
+                aria-expanded={showStaffSubmenu}
               >
                 <span className="flex items-center gap-3">
                   <FaUsersCog className="w-5 h-5" />
-                  <span>Quản lý tài khoản</span>
+                  <span>Nhân sự</span>
                 </span>
-              </Link>
+                <span
+                  className="text-xs transition-transform duration-200"
+                  style={{ transform: showStaffSubmenu ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                >
+                  ▼
+                </span>
+              </button>
+
+              {showStaffSubmenu ? (
+                <ul className="mt-2 space-y-1">
+                  <li>
+                    <Link to="/admin/staff" className={subNavItemClass(path === '/admin/staff')}>
+                      <FaList />
+                      Danh sách
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/admin/staff/create" className={subNavItemClass(path === '/admin/staff/create')}>
+                      <FaUserPlus />
+                      Tạo tài khoản
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/admin/staff/import" className={subNavItemClass(path === '/admin/staff/import')}>
+                      <FaFileImport />
+                      Nhập file
+                    </Link>
+                  </li>
+                </ul>
+              ) : null}
             </li>
 
             <li className="pt-1">
               <Link to="/admin/priority-profiles" className={`${navItemClass(isActive('/admin/priority-profiles'))} justify-between`}>
                 <span className="flex items-center gap-3">
                   <FaIdCard className="w-5 h-5" />
-                  <span>Duyet ho so</span>
+                  <span>Duyệt hồ sơ</span>
                 </span>
                 {pendingCount > 0 ? (
                   <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">!</span>
@@ -155,20 +186,20 @@ const AdminLayout = () => {
             <li>
               <Link to="/admin/reports" className={navItemClass(isActive('/admin/reports'))}>
                 <FaChartLine className="w-5 h-5" />
-                <span>Bao cao doanh thu</span>
+                <span>Báo cáo doanh thu</span>
               </Link>
             </li>
 
             <li>
               <Link to="/admin/feedback" className={navItemClass(isActive('/admin/feedback'))}>
                 <FaComments className="w-5 h-5" />
-                <span>Phan hoi khach hang</span>
+                <span>Phản hồi khách hàng</span>
               </Link>
             </li>
             <li>
               <Link to="/admin/promotions" className={navItemClass(isActive('/admin/promotions'))}>
                 <FaTag className="w-5 h-5" />
-                <span>Khuyen mai</span>
+                <span>Khuyến mãi</span>
               </Link>
             </li>
           </ul>
@@ -202,7 +233,7 @@ const AdminLayout = () => {
                 }}
                 className="text-xs text-red-300 transition-colors hover:text-red-200"
               >
-                Dang xuat
+                Đăng xuất
               </button>
             </div>
           </div>
@@ -213,7 +244,7 @@ const AdminLayout = () => {
         {pendingCount > 0 ? (
           <div className="mx-6 mt-6 rounded-2xl bg-[#fff7db] px-6 py-3 text-sm font-semibold text-[#664d03] shadow-[0_2px_8px_rgba(0,0,0,0.05)] lg:mx-8">
             <div className="flex items-center justify-between gap-4">
-              <span>Co {pendingCount} ho so uu tien dang cho duyet</span>
+              <span>Có {pendingCount} hồ sơ ưu tiên đang chờ duyệt</span>
               <Link to="/admin/priority-profiles" className="text-blue-600 hover:underline">
                 Xem ngay
               </Link>
