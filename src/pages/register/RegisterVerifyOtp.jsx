@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FiArrowLeft, FiArrowRight, FiCheckCircle, FiShield } from 'react-icons/fi';
 import AuthShell from '../../components/auth/AuthShell';
+import RegistrationContactSummary from '../../components/auth/RegistrationContactSummary';
 import api from '../../utils/api';
 import {
   OTP_RESEND_SECONDS,
@@ -142,22 +143,12 @@ const RegisterVerifyOtp = () => {
       {error ? <div className="auth-status-banner error">{error}</div> : null}
       {message ? <div className="auth-status-banner success">{message}</div> : null}
 
-      <div className="auth-surface-card">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#426656]">Name</span>
-            <span className="mt-1 text-sm font-semibold text-[#001a0f]">{registrationState.fullName}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#426656]">Contact</span>
-            <span className="mt-1 text-sm font-semibold text-[#001a0f]">{registrationState.contactValue}</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#426656]">Method</span>
-            <span className="mt-1 text-sm font-semibold text-[#001a0f]">{registrationState.contactType || (isPhoneFlow ? 'PHONE' : 'EMAIL')}</span>
-          </div>
-        </div>
-      </div>
+      <RegistrationContactSummary
+        fullName={registrationState.fullName}
+        contactValue={registrationState.contactValue}
+        contactType={registrationState.contactType || (isPhoneFlow ? 'PHONE' : 'EMAIL')}
+        eyebrow="Verification contact"
+      />
 
       <form onSubmit={handleSubmit} className="auth-form-card flex flex-col gap-5">
         {!isPhoneFlow ? (

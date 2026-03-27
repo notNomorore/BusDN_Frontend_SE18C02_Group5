@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../utils/api';
 import AuthContext from '../context/AuthContext';
+import { buildMonthlyPassDetailsPath } from '../utils/monthlyPass';
 
 const PASS_TYPE = { SINGLE_ROUTE: 'SINGLE_ROUTE', INTER_ROUTE: 'INTER_ROUTE' };
 const PAYMENT_METHOD = { VNPAY: 'VNPAY', MOMO: 'MOMO' };
@@ -30,6 +31,10 @@ const StatusBadge = ({ status }) => {
 const MonthlyPass = () => {
   const { token } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
 
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
@@ -76,6 +81,51 @@ const MonthlyPass = () => {
       }
     })();
   }, [token, navigate]);
+
+  useEffect(() => {
+    const queryPassType = searchParams.get('passType');
+    const queryRouteId = searchParams.get('routeId');
+    const queryPaymentMethod = searchParams.get('paymentMethod');
+    const queryMonth = Number(searchParams.get('month') || 0);
+    const queryYear = Number(searchParams.get('year') || 0);
+    const queryPromoCode = searchParams.get('promoCode');
+    const queryError = searchParams.get('error');
+    const querySuccess = searchParams.get('success');
+
+    if (queryPassType === PASS_TYPE.SINGLE_ROUTE || queryPassType === PASS_TYPE.INTER_ROUTE) {
+      setPassType(queryPassType);
+    }
+    if (queryRouteId !== null) {
+      setSelectedRouteId(queryRouteId || '');
+    }
+    if (queryPaymentMethod === PAYMENT_METHOD.VNPAY || queryPaymentMethod === PAYMENT_METHOD.MOMO) {
+      setPaymentMethod(queryPaymentMethod);
+    }
+    if (Number.isInteger(queryMonth) && queryMonth >= 1 && queryMonth <= 12) {
+      setSelectedMonth(queryMonth);
+    }
+    if (Number.isInteger(queryYear) && queryYear >= new Date().getFullYear()) {
+      setSelectedYear(queryYear);
+    }
+    if (queryPromoCode !== null) {
+      setPromoCode(queryPromoCode);
+      setPromoResult(null);
+      setPromoError('');
+    }
+    if (queryError) {
+      setError(queryError);
+      setSuccess('');
+    } else if (querySuccess) {
+      setSuccess(querySuccess);
+      setError('');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (selectedYear === currentYear && selectedMonth < currentMonth) {
+      setSelectedMonth(currentMonth);
+    }
+  }, [currentMonth, currentYear, selectedMonth, selectedYear]);
 
   // ── Derived price calculations ──────────────────────────────────────────────
   const selectedRoute = pageData.routes.find(r => r._id === selectedRouteId) || null;
@@ -129,21 +179,14 @@ const MonthlyPass = () => {
       }
     } catch (e) {
       if (e.response?.status === 409 && e.response?.data?.existingPassId) {
-        const query = new URLSearchParams({
-          success: e.response?.data?.message || 'Ve thang cho ky nay da ton tai trong tai khoan cua ban.',
-          passId: String(e.response.data.existingPassId),
-          passType: String(e.response.data.passType || passType),
-          month: String(e.response.data.month || selectedMonth),
-          year: String(e.response.data.year || selectedYear),
-        });
-        navigate(`/monthly-pass/result?${query.toString()}`);
+        navigate(buildMonthlyPassDetailsPath(e.response.data.existingPassId));
         return;
       }
       setPromoError(e.response?.data?.message || 'Không thể kiểm tra mã giảm giá.');
     } finally {
       setPromoLoading(false);
     }
-  }, [promoCode, passType, selectedRouteId]);
+  }, [navigate, passType, promoCode, selectedMonth, selectedRouteId, selectedYear]);
 
   // ── Purchase / Checkout ──────────────────────────────────────────────────────
   const handlePurchase = async () => {
@@ -152,14 +195,7 @@ const MonthlyPass = () => {
       setError('Vui lòng chọn tuyến xe.'); return;
     }
     if (existingPass?._id) {
-      const query = new URLSearchParams({
-        success: 'Ve thang cho ky nay da ton tai trong tai khoan cua ban.',
-        passId: String(existingPass._id),
-        passType,
-        month: String(selectedMonth),
-        year: String(selectedYear),
-      });
-      navigate(`/monthly-pass/result?${query.toString()}`);
+      navigate(buildMonthlyPassDetailsPath(existingPass._id));
       return;
     }
     setPurchasing(true);
@@ -184,9 +220,11 @@ const MonthlyPass = () => {
     }
   };
 
-  const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear + 1, currentYear + 2];
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  const selectableMonths = selectedYear === currentYear
+    ? months.filter(m => m >= currentMonth)
+    : months;
 
   // ── Loading state ────────────────────────────────────────────────────────────
   if (loading) {
@@ -310,7 +348,7 @@ const MonthlyPass = () => {
                   onChange={e => setSelectedMonth(Number(e.target.value))}
                   className="w-full h-12 px-4 rounded-xl bg-[#ecf6f2] border-none focus:ring-2 focus:ring-[#2ba471] font-medium outline-none appearance-none"
                 >
-                  {months.map(m => <option key={m} value={m}>Tháng {String(m).padStart(2, '0')}</option>)}
+                  {selectableMonths.map(m => <option key={m} value={m}>Tháng {String(m).padStart(2, '0')}</option>)}
                 </select>
                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#426656] text-base">expand_more</span>
               </div>
@@ -320,7 +358,13 @@ const MonthlyPass = () => {
               <div className="relative">
                 <select
                   value={selectedYear}
-                  onChange={e => setSelectedYear(Number(e.target.value))}
+                  onChange={e => {
+                    const nextYear = Number(e.target.value);
+                    setSelectedYear(nextYear);
+                    if (nextYear === currentYear && selectedMonth < currentMonth) {
+                      setSelectedMonth(currentMonth);
+                    }
+                  }}
                   className="w-full h-12 px-4 rounded-xl bg-[#ecf6f2] border-none focus:ring-2 focus:ring-[#2ba471] font-medium outline-none appearance-none"
                 >
                   {years.map(y => <option key={y} value={y}>{y}</option>)}
@@ -369,10 +413,10 @@ const MonthlyPass = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={handlePurchase}
+                  onClick={() => navigate(buildMonthlyPassDetailsPath(existingPass._id))}
                   className="inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-700"
                 >
-                  Xem ve hien tai
+                  Xem vé hiện tại
                 </button>
               </div>
             </div>

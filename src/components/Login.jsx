@@ -19,6 +19,27 @@ import {
 } from '../services/authService';
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || `http://localhost:${import.meta.env.VITE_API_PORT || '3000'}`).replace(/\/$/, '');
+const GOOGLE_AUTH_URL = '/auth/google';
+
+const getOriginVariants = (origin) => {
+  if (!origin) return [];
+  try {
+    const url = new URL(origin);
+    const isLoopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (!isLoopback) return [url.origin];
+
+    const altHostname = url.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+    const altOrigin = `${url.protocol}//${altHostname}${url.port ? `:${url.port}` : ''}`;
+    return [url.origin, altOrigin];
+  } catch {
+    return [origin];
+  }
+};
+
+const GOOGLE_AUTH_ORIGINS = new Set([
+  ...getOriginVariants(window.location.origin),
+  ...getOriginVariants(API_ORIGIN),
+].filter(Boolean));
 const OTP_RESEND_SECONDS = 60;
 
 const AUTH_VIEW = {
@@ -193,7 +214,7 @@ const Login = ({ onClose }) => {
 
   const openGoogleAuthPopup = () => new Promise((resolve, reject) => {
     const popup = window.open(
-      `${API_ORIGIN}/auth/google`,
+      GOOGLE_AUTH_URL,
       'busdn-google-auth',
       'width=520,height=680,left=200,top=80',
     );
@@ -209,7 +230,7 @@ const Login = ({ onClose }) => {
     };
 
     const handleMessage = (event) => {
-      if (event.origin !== API_ORIGIN) return;
+      if (!GOOGLE_AUTH_ORIGINS.has(event.origin)) return;
       if (!event.data || event.data.source !== 'busdn-google-auth') return;
 
       cleanup();

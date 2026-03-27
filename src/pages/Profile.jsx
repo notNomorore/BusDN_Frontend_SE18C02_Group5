@@ -8,10 +8,12 @@ import {
   FiCheckCircle,
   FiClock,
   FiCreditCard,
+  FiDownload,
   FiEdit2,
   FiFileText,
   FiLogOut,
   FiMail,
+  FiEye,
   FiPhone,
   FiRefreshCw,
   FiShield,
@@ -58,6 +60,7 @@ const normalizePriorityStatus = (status) => {
 };
 
 const prioritySplitClass = 'grid gap-5 xl:grid-cols-[30%_minmax(0,1fr)]';
+const priorityApprovedGridClass = 'grid items-start gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,9fr)]';
 const EMPTY_PRIORITY_FILES = {
   cardImageFront: null,
   cardImageBack: null,
@@ -69,6 +72,22 @@ const extractFileName = (value) => {
   if (!raw) return '';
   return raw.split(/[\\/]/).pop() || raw;
 };
+
+const getPriorityFileUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/')) return raw;
+  if (raw.startsWith('uploads/')) return `/${raw}`;
+  if (raw.startsWith('priority/')) return `/uploads/${raw}`;
+  return `/uploads/priority/${raw}`;
+};
+
+const PRIORITY_DOCUMENTS = [
+  { label: 'Mặt trước thẻ', field: 'cardImageFront', icon: FiCreditCard },
+  { label: 'Mặt sau thẻ', field: 'cardImageBack', icon: FiCreditCard },
+  { label: 'Minh chứng ưu tiên', field: 'proofImage', icon: FiFileText },
+];
 
 
 const getInitials = (name) =>
@@ -232,8 +251,8 @@ const Profile = () => {
     const backUpload = priorityFiles.cardImageBack;
     const proofUpload = priorityFiles.proofImage;
 
-    if (!cardNumber || !(frontUpload || cardImageFront) || !(backUpload || cardImageBack) || !(proofUpload || proofImage)) {
-      showAlert('Please complete the required priority profile fields.', 'Notice');
+      if (!cardNumber || !(frontUpload || cardImageFront) || !(backUpload || cardImageBack) || !(proofUpload || proofImage)) {
+      showAlert('Vui lòng hoàn thành đầy đủ thông tin hồ sơ ưu tiên.', 'Thông báo');
       return;
     }
     try {
@@ -250,14 +269,14 @@ const Profile = () => {
 
       const res = await api.post('/api/user/register-priority', formData);
       if (res.data.ok) {
-        showAlert(res.data.message || 'Priority request submitted.', 'Success');
+        showAlert('Hồ sơ ưu tiên đã được gửi. Quản trị viên sẽ xem xét trước khi kích hoạt ưu đãi.', 'Thành công');
         setPriorityFiles({ ...EMPTY_PRIORITY_FILES });
         fetchUser();
         setActiveTab('priority');
       }
     } catch (err) {
       console.error('Error submitting priority:', err.message);
-      showAlert(err.response?.data?.message || 'Failed to submit priority profile.', 'Error');
+      showAlert(err.response?.data?.message || 'Không thể gửi hồ sơ ưu tiên.', 'Lỗi');
     }
   };
 
@@ -304,7 +323,31 @@ const Profile = () => {
           <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">JPG, PNG, toi da 10MB</span>
         </label>
       </div>
-    );
+      );
+  };
+
+  const openPriorityFile = (value) => {
+    const url = getPriorityFileUrl(value);
+    if (!url) {
+      showAlert('File chưa được tải lên.', 'Notice');
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const downloadPriorityFile = (value, fallbackName = '') => {
+    const url = getPriorityFileUrl(value);
+    if (!url) {
+      showAlert('File chưa được tải lên.', 'Notice');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fallbackName || extractFileName(value) || 'priority-file';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   const settingsTab = (
@@ -454,6 +497,14 @@ const Profile = () => {
                 <p className="mt-0.5 text-xs text-slate-400">{pass.passType === 'INTER_ROUTE' ? 'Liên tuyến' : 'Đơn tuyến'}</p>
               </div>
             </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => navigate(`/monthly-pass/${pass._id}`)}
+                className="rounded-xl border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+              >
+                Xem chi tiet ve
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -493,7 +544,7 @@ const Profile = () => {
             ))}
           </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={priorityApprovedGridClass}>
           <section className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
             <h3 className="text-base font-black text-slate-900">Quyền lợi của bạn</h3>
             <div className="mt-3 space-y-2">
@@ -505,16 +556,63 @@ const Profile = () => {
             </div>
           </section>
           <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-black text-slate-900">Giấy tờ đã nộp</h3>
-            <div className="mt-3 space-y-3">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Mặt trước thẻ</p>
-                <p className="mt-1 break-all text-sm text-slate-700">{extractFileName(data?.priorityProfile?.cardImageFront) || 'Chua co'}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">Giấy tờ đã nộp</h3>
+                <p className="mt-1 text-sm text-slate-500">Mở từng tài liệu để xem lại hoặc tải xuống bản gốc từ hệ thống.</p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Mặt sau thẻ</p>
-                <p className="mt-1 break-all text-sm text-slate-700">{extractFileName(data?.priorityProfile?.cardImageBack) || 'Chua co'}</p>
-              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
+                3 tài liệu
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {PRIORITY_DOCUMENTS.map(({ label, field, icon: Icon }) => {
+                const fileValue = data?.priorityProfile?.[field];
+                const fileName = extractFileName(fileValue);
+                const fileUrl = getPriorityFileUrl(fileValue);
+                const hasFile = Boolean(fileUrl);
+
+                return (
+                  <div key={field} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                        <Icon className="text-lg" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">{label}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openPriorityFile(fileValue)}
+                        disabled={!hasFile}
+                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition ${
+                          hasFile
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                            : 'cursor-not-allowed bg-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <FiEye />
+                        Xem
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadPriorityFile(fileValue, fileName)}
+                        disabled={!hasFile}
+                        className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                          hasFile
+                            ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                            : 'cursor-not-allowed border-slate-200 bg-white text-slate-300'
+                        }`}
+                      >
+                        <FiDownload />
+                        Tải xuống
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         </div>

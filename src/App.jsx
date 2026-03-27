@@ -12,6 +12,7 @@ import Profile from './pages/Profile'
 import RouteDetails from './pages/RouteDetails'
 import ForgotPassword from './pages/ForgotPassword'
 import MonthlyPass from './pages/MonthlyPass'
+import MonthlyPassDetails from './pages/MonthlyPassDetails'
 import MonthlyPassResult from './pages/MonthlyPassResult'
 import BuyTripTicket from './pages/BuyTripTicket'
 import CreatePassword from './pages/CreatePassword'
@@ -37,6 +38,7 @@ import FareMatrix from './pages/admin/FareMatrix'
 import RevenueReports from './pages/admin/RevenueReports'
 import AdminFeedback from './pages/admin/AdminFeedback'
 import AdminPromotions from './pages/admin/AdminPromotions'
+import AdminPromotionHistory from './pages/admin/AdminPromotionHistory'
 import DriverLayout from './pages/driver/DriverLayout'
 import ViewSchedule from './pages/driver/ViewSchedule'
 import TripControl from './pages/driver/TripControl'
@@ -128,6 +130,7 @@ function AppContent() {
             <Route path="reports" element={<RevenueReports />} />
             <Route path="feedback" element={<AdminFeedback />} />
             <Route path="promotions" element={<AdminPromotions />} />
+            <Route path="promotions/history" element={<AdminPromotionHistory />} />
           </Route>
 
           <Route path="/driver" element={<DriverLayout />}>
@@ -180,6 +183,7 @@ function PublicShell() {
           <Route path='/route-details/:id' element={<RouteDetails />} />
           <Route path='/forgot-password' element={<ForgotPassword />} />
           <Route path='/monthly-pass' element={<MonthlyPass />} />
+          <Route path='/monthly-pass/:passId' element={<MonthlyPassDetails />} />
           <Route path='/monthly-pass/result' element={<MonthlyPassResult />} />
           <Route path='/trip-ticket' element={<BuyTripTicket />} />
           <Route path='/rate-trip/:tripId' element={<RateTripPage />} />

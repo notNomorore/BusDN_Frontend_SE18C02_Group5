@@ -47,9 +47,18 @@ export default defineConfig(({ mode }) => {
           ...proxyTarget,
           ws: true,
         },
+        '/uploads': {
+          ...proxyTarget,
+        },
+        '/images': {
+          ...proxyTarget,
+        },
         '/passenger': {
           ...proxyTarget,
-        }
+        },
+        '/auth': {
+          ...proxyTarget,
+        },
       }
     }
   }

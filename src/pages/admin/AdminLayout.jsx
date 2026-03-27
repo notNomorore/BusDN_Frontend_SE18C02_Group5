@@ -21,13 +21,29 @@ import {
 import AuthContext from '../../context/AuthContext'
 import api from '../../utils/api'
 
+const DEFAULT_AVATAR = '/assets/default-avatar.svg'
+
+const resolveAvatarSrc = (avatar) => {
+  const value = String(avatar || '').trim()
+  if (
+    !value ||
+    value === '/images/default-avatar.png' ||
+    value === '/images/default-avatar.svg' ||
+    value === '/assets/default-avatar.svg'
+  ) {
+    return DEFAULT_AVATAR
+  }
+
+  return value
+}
+
 const AdminLayout = () => {
   const { userRole, token, logout } = useContext(AuthContext)
   const location = useLocation()
   const navigate = useNavigate()
   const path = location.pathname
 
-  const [pendingCount, setPendingCount] = useState(0)
+  const [pendingCount] = useState(0)
   const [showStaffSubmenu, setShowStaffSubmenu] = useState(false)
   const [user, setUser] = useState(null)
 
@@ -66,18 +82,16 @@ const AdminLayout = () => {
   }
 
   const navItemClass = (active) => (
-    `mx-3 flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
-      active
-        ? 'bg-[#495057] text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
-        : 'text-gray-300 hover:bg-[#495057] hover:text-white'
+    `mx-3 flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${active
+      ? 'bg-[#495057] text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]'
+      : 'text-gray-300 hover:bg-[#495057] hover:text-white'
     }`
   )
 
   const subNavItemClass = (active) => (
-    `mx-3 flex items-center gap-3 rounded-lg pl-11 pr-4 py-2.5 text-sm transition-all ${
-      active
-        ? 'bg-[#3b4249] text-white'
-        : 'text-gray-400 hover:bg-[#3b4249] hover:text-white'
+    `mx-3 flex items-center gap-3 rounded-lg pl-11 pr-4 py-2.5 text-sm transition-all ${active
+      ? 'bg-[#3b4249] text-white'
+      : 'text-gray-400 hover:bg-[#3b4249] hover:text-white'
     }`
   )
 
@@ -116,8 +130,10 @@ const AdminLayout = () => {
 
             <li className="pt-1">
               <button
-                onClick={() => setShowStaffSubmenu((current) => !current)}
+                type="button"
+                onClick={() => setShowStaffSubmenu((v) => !v)}
                 className={`${navItemClass(path.includes('/admin/staff'))} w-[calc(100%-1.5rem)] justify-between`}
+                aria-expanded={showStaffSubmenu}
               >
                 <span className="flex items-center gap-3">
                   <FaUsersCog className="w-5 h-5" />
@@ -193,7 +209,15 @@ const AdminLayout = () => {
           <div className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-3">
             <div className="h-10 w-10 overflow-hidden rounded-full bg-gray-500">
               {user?.avatar ? (
-                <img src={user.avatar} alt="Avatar" className="h-full w-full object-cover" />
+                <img
+                  src={resolveAvatarSrc(user.avatar)}
+                  alt="Avatar"
+                  className="h-full w-full object-cover"
+                  onError={(event) => {
+                    event.currentTarget.onerror = null
+                    event.currentTarget.src = DEFAULT_AVATAR
+                  }}
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-sm font-bold">
                   {user?.fullName?.charAt(0) || 'A'}
