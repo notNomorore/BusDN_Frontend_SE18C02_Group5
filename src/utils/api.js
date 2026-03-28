@@ -1,8 +1,8 @@
 import axios from 'axios';
+import { REQUEST_BASE_URL } from './runtimeConfig';
 
-// The proxy in vite.config.js handles routing /api to localhost:3000
 const api = axios.create({
-    baseURL: '/',
+    baseURL: REQUEST_BASE_URL || '/',
     headers: {
         'Content-Type': 'application/json',
     },

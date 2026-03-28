@@ -56,6 +56,7 @@ import RegisterStep1 from './pages/register/RegisterStep1'
 import RegisterStep2 from './pages/register/RegisterStep2'
 import RegisterVerifyOtp from './pages/register/RegisterVerifyOtp'
 import RegisterCreatePassword from './pages/register/RegisterCreatePassword'
+import { Socket_URL } from './utils/constant'
 
 const NotificationRealtime = () => {
   const { token, userRole } = useContext(AuthContext)
@@ -65,7 +66,8 @@ const NotificationRealtime = () => {
   useEffect(() => {
     if (!token || !userRole) return undefined
 
-    const socket = io('/', {
+    const socket = io(Socket_URL, {
+      path: '/socket.io',
       transports: ['websocket'],
       withCredentials: true,
     })

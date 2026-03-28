@@ -17,9 +17,9 @@ import {
   resetPassword as resetPasswordAccount,
   verifyPasswordResetOtp,
 } from '../services/authService';
+import { API_ORIGIN, buildApiUrl } from '../utils/runtimeConfig';
 
-const API_ORIGIN = (import.meta.env.VITE_API_URL || `http://localhost:${import.meta.env.VITE_API_PORT || '3000'}`).replace(/\/$/, '');
-const GOOGLE_AUTH_URL = '/auth/google';
+const GOOGLE_AUTH_URL = buildApiUrl('/auth/google');
 
 const getOriginVariants = (origin) => {
   if (!origin) return [];
