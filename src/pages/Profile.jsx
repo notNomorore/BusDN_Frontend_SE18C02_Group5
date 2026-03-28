@@ -19,7 +19,7 @@ import {
   FiShield,
   FiUser
 } from 'react-icons/fi';
-import { LuLock, LuShieldCheck, LuWallet } from 'react-icons/lu';
+import { LuLock, LuShieldCheck } from 'react-icons/lu';
 import AuthContext from '../context/AuthContext';
 import api from '../utils/api';
 import { useDialog } from '../context/DialogContext';
@@ -42,9 +42,6 @@ const fadeInUp = {
   hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } }
 };
-
-const formatCurrencyVnd = (value) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value || 0);
 
 const formatDateLabel = (value) => {
   if (!value) return 'Not set';
@@ -101,15 +98,12 @@ const getInitials = (name) =>
 const Profile = () => {
   const [activeTab, setActiveTab] = useState('settings');
   const [data, setData] = useState({});
-  const [wallet, setWallet] = useState(0);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [showPasswordEdit, setShowPasswordEdit] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [showDepositForm, setShowDepositForm] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
   const [priorityForm, setPriorityForm] = useState({
     type: 'Student',
     cardNumber: '',
@@ -160,7 +154,6 @@ const Profile = () => {
       const res = await api.get('/api/user/profile');
       const user = res.data.user || {};
       setData(user);
-      setWallet(user.walletBalance || 0);
       setEditName(user.fullName || '');
       setEditPhone(user.phone || '');
       setEditMode(false);
@@ -171,23 +164,13 @@ const Profile = () => {
     }
   }, [handleLogout, hydratePriorityForm]);
 
-  const fetchWallet = useCallback(async () => {
-    try {
-      const res = await api.get('/api/user/wallet');
-      if (res.data.ok) setWallet(res.data.walletBalance || 0);
-    } catch (err) {
-      console.error('Error fetching wallet:', err.message);
-    }
-  }, []);
-
   useEffect(() => {
     if (!token) {
       navigate('/');
       return;
     }
     fetchUser();
-    fetchWallet();
-  }, [fetchUser, fetchWallet, navigate, token]);
+  }, [fetchUser, navigate, token]);
 
   const updateUser = async () => {
     try {
@@ -220,27 +203,6 @@ const Profile = () => {
     } catch (err) {
       console.error('Error changing password:', err.message);
       showAlert(err.response?.data?.message || 'Failed to change password.', 'Error');
-    }
-  };
-
-  const handleDeposit = async (event) => {
-    event.preventDefault();
-    const amount = Number(depositAmount);
-    if (!amount || amount <= 0) {
-      showAlert('Please enter a valid deposit amount.', 'Notice');
-      return;
-    }
-    try {
-      const res = await api.post('/api/user/wallet/deposit', { amount });
-      if (res.data.ok) {
-        setWallet(res.data.newBalance ?? res.data.walletBalance ?? wallet);
-        setDepositAmount('');
-        setShowDepositForm(false);
-        showAlert('Wallet updated successfully.', 'Success');
-      }
-    } catch (err) {
-      console.error('Error depositing:', err.message);
-      showAlert(err.response?.data?.message || 'Failed to deposit wallet.', 'Error');
     }
   };
 
@@ -283,14 +245,14 @@ const Profile = () => {
   const cardClass = 'profile-card rounded-[1.75rem] border border-emerald-100 bg-white p-5 shadow-[0_20px_50px_rgba(15,118,110,0.08)]';
 
   const renderField = (label, icon, value, onChange, editable = false, type = 'text') => (
-    <label className="space-y-1.5">
-      <span className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">{label}</span>
-      <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${editable ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-slate-50/80'}`}>
-        <span className="text-slate-400">{icon}</span>
+    <label className="space-y-1">
+      <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">{label}</span>
+      <div className={`flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 ${editable ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-slate-50/80'}`}>
+        <span className="flex-shrink-0 text-slate-400">{icon}</span>
         {editable ? (
-          <input value={value} onChange={onChange} type={type} className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none md:text-base" />
+          <input value={value} onChange={onChange} type={type} className="min-w-0 w-full bg-transparent text-sm font-medium text-slate-900 outline-none" />
         ) : (
-          <span className="text-sm font-medium text-slate-700 md:text-base">{value || 'Not available'}</span>
+          <span className="min-w-0 truncate text-sm font-medium text-slate-700">{value || 'Not available'}</span>
         )}
       </div>
     </label>
@@ -351,50 +313,40 @@ const Profile = () => {
   };
 
   const settingsTab = (
-    <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="grid gap-2 xl:grid-cols-[240px_minmax(0,1fr)]">
       {/* Left sidebar */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Account Identity */}
-        <div className="rounded-[1.75rem] bg-[#072f28] p-5 text-white shadow-[0_24px_50px_rgba(7,47,40,0.24)]">
-          <p className="text-xs font-bold uppercase tracking-[0.32em] text-emerald-300">Account Identity</p>
-          <div className="mt-3 flex items-center gap-3">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-lg font-black text-white">{getInitials(data?.fullName)}</div>
-            <h1 className="text-xl font-black leading-tight text-white">{data?.fullName || 'BusDN Rider'}</h1>
+        <div className="rounded-[1.5rem] bg-[#072f28] p-3 text-white shadow-[0_20px_40px_rgba(7,47,40,0.22)]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-emerald-300">Account Identity</p>
+          <div className="mt-2 flex items-center gap-2.5">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 text-sm font-black text-white">{getInitials(data?.fullName)}</div>
+            <h1 className="text-base font-black leading-tight text-white">{data?.fullName || 'BusDN Rider'}</h1>
           </div>
-          <div className="mt-4 space-y-2 text-sm text-emerald-100">
+          <div className="mt-2.5 space-y-1 text-xs text-emerald-100">
             <div className="flex items-center gap-2"><FiMail className="flex-shrink-0 text-emerald-300" /><span className="truncate">{data?.email || 'No email yet'}</span></div>
             <div className="flex items-center gap-2"><FiPhone className="flex-shrink-0 text-emerald-300" /><span>{data?.phone || 'No phone number'}</span></div>
-          </div>
-        </div>
-
-        {/* Wallet only */}
-        <div className={`${cardClass} bg-gradient-to-br from-emerald-50 via-white to-teal-50`}>
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Wallet Balance</p>
-          <h2 className="mt-1.5 text-2xl font-black text-slate-900">{formatCurrencyVnd(wallet)}</h2>
-          <p className="mt-1 text-xs text-slate-500">Use wallet credit for tickets and monthly passes.</p>
-          <div className="mt-3">
-            <button onClick={() => navigate('/monthly-pass')} className="w-full whitespace-nowrap rounded-xl border border-emerald-200 py-2 text-xs font-bold text-emerald-700">+ Buy Monthly Pass</button>
           </div>
         </div>
       </div>
 
       {/* Right content */}
-      <div className="space-y-4">
-        <section className={cardClass}>
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="space-y-2">
+        <section className={`${cardClass} p-3`}>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="rounded-full bg-emerald-100 px-4 py-1 text-xs font-bold uppercase tracking-[0.28em] text-emerald-700">Personal Profile</p>
-              <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-900">Personal Information</h2>
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">Keep your contact details accurate so ticket updates and account notices reach you without interruption.</p>
+              <p className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Personal Profile</p>
+              <h2 className="mt-1.5 text-lg font-black tracking-tight text-slate-900">Personal Information</h2>
+              <p className="mt-1 max-w-2xl text-[11px] leading-4 text-slate-500">Keep your contact details accurate for ticket updates and account notices.</p>
             </div>
-            <button onClick={() => setEditMode((value) => !value)} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700"><FiEdit2 /> {editMode ? 'Stop Editing' : 'Edit'}</button>
+            <button onClick={() => setEditMode((value) => !value)} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-700"><FiEdit2 /> {editMode ? 'Stop Editing' : 'Edit'}</button>
           </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             {renderField('Full Name', <FiUser />, editMode ? editName : data?.fullName, (event) => setEditName(event.target.value), editMode)}
             {renderField('Phone Number', <FiPhone />, editMode ? editPhone : data?.phone, (event) => setEditPhone(event.target.value), editMode)}
             {renderField('Email', <FiMail />, data?.email, undefined, false, 'email')}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-500">Priority Status</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">Priority Status</p>
               <div className="mt-2 flex items-center gap-2">
                 <FiShield className="text-emerald-600" />
                 <span className="text-sm font-semibold text-slate-700">{priorityStatus}</span>
@@ -402,34 +354,34 @@ const Profile = () => {
             </div>
           </div>
         </section>
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
-          <section className={`${cardClass} bg-gradient-to-br from-white via-slate-50 to-emerald-50`}>
+        <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_200px]">
+          <section className={`${cardClass} bg-gradient-to-br from-white via-slate-50 to-emerald-50 p-3`}>
             <div className="flex items-center gap-3">
-              <LuLock className="text-xl text-emerald-700" />
-              <h3 className="text-xl font-black text-slate-900">Security</h3>
+              <LuLock className="text-lg text-emerald-700" />
+              <h3 className="text-base font-black text-slate-900">Security</h3>
             </div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Update your password regularly to protect ride history, wallet balance, and profile details.</p>
+            <p className="mt-1 text-[11px] leading-4 text-slate-500">Update your password regularly to protect ride history and profile details.</p>
             {!showPasswordEdit ? (
-              <button onClick={() => setShowPasswordEdit(true)} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-emerald-700">Change password <FiArrowRight /></button>
+              <button onClick={() => setShowPasswordEdit(true)} className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-emerald-700">Change password <FiArrowRight /></button>
             ) : (
-              <form onSubmit={updatePassword} className="mt-4 space-y-3">
-                <input value={oldPassword} onChange={(event) => setOldPassword(event.target.value)} type="password" placeholder="Current password" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none" />
-                <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} type="password" placeholder="New password" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none" />
+              <form onSubmit={updatePassword} className="mt-2 space-y-2">
+                <input value={oldPassword} onChange={(event) => setOldPassword(event.target.value)} type="password" placeholder="Current password" className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none" />
+                <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} type="password" placeholder="New password" className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none" />
                 <div className="flex gap-3">
-                  <button type="submit" className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">Update</button>
-                  <button type="button" onClick={() => { setShowPasswordEdit(false); setOldPassword(''); setNewPassword(''); }} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600">Cancel</button>
+                  <button type="submit" className="rounded-2xl bg-slate-900 px-4 py-2 text-xs font-bold text-white">Update</button>
+                  <button type="button" onClick={() => { setShowPasswordEdit(false); setOldPassword(''); setNewPassword(''); }} className="rounded-2xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">Cancel</button>
                 </div>
               </form>
             )}
           </section>
-          <section className="rounded-[1.75rem] border border-slate-700 bg-slate-900 p-5">
+          <section className="rounded-[1.5rem] border border-slate-700 bg-slate-900 p-3">
             <div className="flex items-center gap-3">
-              <LuShieldCheck className="text-xl text-emerald-400" />
-              <h3 className="text-lg font-black text-white">Actions</h3>
+              <LuShieldCheck className="text-lg text-emerald-400" />
+              <h3 className="text-sm font-black text-white">Actions</h3>
             </div>
-            <div className="mt-5 space-y-3">
-              <button onClick={updateUser} disabled={!editMode} className={`w-full rounded-2xl px-5 py-3.5 text-sm font-bold transition ${editMode ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400' : 'cursor-not-allowed bg-slate-700 text-slate-400'}`}>Save Changes</button>
-              <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-900/40 px-5 py-3.5 text-sm font-bold text-red-300 hover:bg-red-900/60"><FiLogOut /> Sign Out</button>
+            <div className="mt-2 space-y-2">
+              <button onClick={updateUser} disabled={!editMode} className={`w-full rounded-2xl px-4 py-2.5 text-xs font-bold transition ${editMode ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400' : 'cursor-not-allowed bg-slate-700 text-slate-400'}`}>Save Changes</button>
+              <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-900/40 px-4 py-2.5 text-xs font-bold text-red-300 hover:bg-red-900/60"><FiLogOut /> Sign Out</button>
             </div>
           </section>
         </div>
@@ -465,15 +417,25 @@ const Profile = () => {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-emerald-100 text-2xl text-emerald-700"><FaTicketAlt /></div>
         <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-900">Chưa có vé nào</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">Sau khi mua vé tháng, danh sách vé của bạn sẽ hiển thị tại đây.</p>
-        <button onClick={() => navigate('/monthly-pass')} className="mt-6 rounded-2xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white">Mua vé tháng</button>
+        <button
+          onClick={() => navigate('/monthly-pass')}
+          className="mt-6 inline-flex items-center justify-center rounded-2xl bg-[#003120] px-6 py-3 text-sm font-black text-white shadow-lg shadow-[#003120]/20 transition hover:bg-[#005234]"
+        >
+          Mua vé tháng
+        </button>
       </section>
     )
 
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="sticky top-14 z-20 flex items-center justify-between gap-3 rounded-[1.5rem] border border-slate-200/70 bg-white/95 px-4 py-3 shadow-[0_16px_30px_rgba(15,23,42,0.08)] backdrop-blur md:top-16">
           <h2 className="text-lg font-black text-slate-900">Vé tháng của tôi</h2>
-          <button onClick={() => navigate('/monthly-pass')} className="rounded-xl border border-emerald-200 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50">+ Mua thêm vé</button>
+          <button
+            onClick={() => navigate('/monthly-pass')}
+            className="inline-flex items-center justify-center rounded-2xl bg-[#003120] px-5 py-3 text-sm font-black text-white shadow-lg shadow-[#003120]/20 transition hover:bg-[#005234]"
+          >
+            + Mua thêm vé
+          </button>
         </div>
         {passes.map(pass => (
           <div key={pass._id} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -785,27 +747,31 @@ const Profile = () => {
   if (!token) return null;
 
   return (
-    <Motion.div variants={fadeInUp} initial="hidden" animate="visible" className="profile-shell min-h-full bg-[linear-gradient(180deg,#f4faf7_0%,#eef5f3_48%,#f7faf9_100%)] px-[2.5%] py-4">
+    <Motion.div variants={fadeInUp} initial="hidden" animate="visible" className="profile-shell min-h-full bg-[linear-gradient(180deg,#f4faf7_0%,#eef5f3_48%,#f7faf9_100%)] px-[2.5%] py-2">
       <div className="flex h-full w-full flex-col">
-        <section className="profile-surface flex min-h-[calc(100vh-128px)] flex-1 flex-col rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur md:p-6">
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="inline-flex rounded-full bg-emerald-100 px-4 py-1 text-xs font-bold uppercase tracking-[0.28em] text-emerald-700">Account Center</p>
-              <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">Profile and Priority Access</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Manage personal details, wallet activity, password security, and your priority fare profile from one place.</p>
+        <section className="profile-surface flex min-h-[calc(100vh-128px)] flex-1 flex-col rounded-[2rem] border border-white/70 bg-white/85 px-4 pb-4 pt-[5px] shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur md:px-5 md:pb-5 md:pt-[5px]">
+          <div className="profile-content-scroll mt-1 min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="border-b border-slate-200 pb-3 pt-[5px]">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.28em] text-emerald-700">Account Center</p>
+                  <h1 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Profile and Priority Access</h1>
+                  <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">Manage personal details, password security, and your priority fare profile from one place.</p>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-nowrap gap-3">
+            <div className="sticky top-0 z-30 flex flex-nowrap justify-end gap-3 bg-white/90 pb-2 pt-2 backdrop-blur">
               {TABS.map((tab) => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${activeTab === tab.id ? 'bg-slate-950 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition ${activeTab === tab.id ? 'bg-slate-950 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                   {tab.label}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="profile-content-scroll mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
-            {activeTab === 'settings' && settingsTab}
-            {activeTab === 'bookings' && bookingsTab}
-            {activeTab === 'priority' && priorityTab}
+            <div className="mt-2">
+              {activeTab === 'settings' && settingsTab}
+              {activeTab === 'bookings' && bookingsTab}
+              {activeTab === 'priority' && priorityTab}
+            </div>
           </div>
         </section>
       </div>

@@ -15,6 +15,7 @@ const Navbar = () => {
   const location = useLocation()
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
+  const isMyTicketsActive = location.pathname === '/profile' && new URLSearchParams(location.search).get('tab') === 'bookings';
 
   const isAdminOrStaff = userRole === 'ADMIN' || userRole === 'STAFF';
 
@@ -32,7 +33,7 @@ const Navbar = () => {
 
   return (
     <div className="flex items-center gap-4">
-      {!isAdminOrStaff && (
+      {token && !isAdminOrStaff && (
         <>
           <Link
             to="/"
@@ -55,13 +56,13 @@ const Navbar = () => {
           </Link>
 
           <Link
-            to="/trip-ticket"
+            to="/profile?tab=bookings"
             className={`hidden md:flex items-center rounded-md px-4 py-2 font-medium transition
-              ${location.pathname === '/trip-ticket' ? 'bg-green-50 text-[#23a983]' : 'hover:bg-green-50 hover:text-[#23a983]'}
+              ${isMyTicketsActive ? 'bg-green-50 text-[#23a983]' : 'hover:bg-green-50 hover:text-[#23a983]'}
             `}
           >
             <LuTicket className="text-lg mr-1" />
-            Vé lẻ
+            Vé của tôi
           </Link>
         </>
       )}

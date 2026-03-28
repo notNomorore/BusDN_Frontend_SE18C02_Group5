@@ -319,14 +319,14 @@ const AdminPriorityProfiles = () => {
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
                                             <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Tài liệu đã nộp</p>
-                                            <h4 className="mt-1 text-lg font-black text-slate-900">Xem hoặc tải lại từng ảnh minh chứng</h4>
+                                            <h4 className="mt-1 text-lg font-black text-slate-900">Xem ảnh minh chứng</h4>
                                         </div>
                                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
                                             3 tài liệu
                                         </span>
                                     </div>
 
-                                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                                         {PRIORITY_DOCUMENTS.map(({ label, field, icon: Icon }) => {
                                             const fileValue = detailProfile?.[field];
                                             const fileUrl = getPriorityFileUrl(fileValue);
@@ -334,20 +334,20 @@ const AdminPriorityProfiles = () => {
                                             const hasFile = Boolean(fileUrl);
 
                                             return (
-                                                <div key={field} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                                                <div key={field} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                                     <div className="flex items-start gap-3">
-                                                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                                                            <Icon className="text-lg" />
+                                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                                                            <Icon className="text-base" />
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">{label}</p>
-                                                            <p className="mt-2 break-words text-sm font-medium leading-6 text-slate-700">
+                                                            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+                                                            <p className="hidden mt-2 break-words text-sm font-medium leading-6 text-slate-700">
                                                                 {fileName || 'Chưa có file'}
                                                             </p>
                                                         </div>
                                                     </div>
 
-                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                    <div className="mt-3 flex flex-wrap gap-2">
                                                         <button
                                                             type="button"
                                                             onClick={() => openPriorityFile(fileValue)}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FaQrcode, FaCamera, FaTimes, FaStop } from 'react-icons/fa';
+import { FaQrcode, FaCamera, FaTimes, FaStop, FaUpload } from 'react-icons/fa';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../utils/api';
 import { useDialog } from '../../context/DialogContext';
@@ -12,7 +12,24 @@ const ValidateQR = () => {
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [scanning, setScanning] = useState(false);
+    const [imageScanning, setImageScanning] = useState(false);
     const scannerRef = useRef(null);
+    const imageInputRef = useRef(null);
+
+    const stopScanner = useCallback(async () => {
+        const scanner = scannerRef.current;
+        scannerRef.current = null;
+
+        if (!scanner) return;
+
+        try {
+            await scanner.stop();
+        } catch (_err) {}
+
+        try {
+            scanner.clear();
+        } catch (_err) {}
+    }, []);
 
     const validate = useCallback(async (code) => {
         const trimmed = String(code || '').trim();
@@ -33,6 +50,39 @@ const ValidateQR = () => {
             setLoading(false);
         }
     }, [showAlert]);
+
+    const scanImageFile = useCallback(async (file) => {
+        if (!file) return;
+
+        setResult(null);
+        setImageScanning(true);
+
+        try {
+            await stopScanner();
+            setScanning(false);
+
+            const html5 = new Html5Qrcode(READER_ID, { verbose: false });
+            try {
+                const decodedText = await html5.scanFile(file, false);
+                await validate(decodedText);
+            } finally {
+                try {
+                    html5.clear();
+                } catch (_err) {}
+            }
+        } catch (err) {
+            console.error(err);
+            showAlert(
+                'Không đọc được mã QR từ ảnh. Hãy chọn ảnh rõ ràng hơn hoặc nhập mã thủ công.',
+                'Ảnh QR'
+            );
+        } finally {
+            setImageScanning(false);
+            if (imageInputRef.current) {
+                imageInputRef.current.value = '';
+            }
+        }
+    }, [showAlert, stopScanner, validate]);
 
     useEffect(() => {
         if (!scanning) return undefined;
@@ -70,19 +120,20 @@ const ValidateQR = () => {
 
         return () => {
             cancelled = true;
-            const s = scannerRef.current;
-            scannerRef.current = null;
-            if (s) {
-                s.stop()
-                    .then(() => s.clear())
-                    .catch(() => {});
-            }
+            void stopScanner();
         };
-    }, [scanning, validate, showAlert]);
+    }, [scanning, stopScanner, validate, showAlert]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
         validate(qrInput);
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            void scanImageFile(file);
+        }
     };
 
     return (
@@ -104,17 +155,37 @@ const ValidateQR = () => {
                         <p className="text-white/70 text-sm px-4">
                             Bấm &quot;Bật camera quét QR&quot; để dùng camera sau trên điện thoại (cần cho phép quyền)
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setResult(null);
-                                setScanning(true);
-                            }}
-                            disabled={loading}
-                            className="inline-flex items-center gap-2 bg-[#23a983] text-white px-5 py-3 rounded-xl font-semibold disabled:opacity-50"
-                        >
-                            <FaCamera /> Bật camera quét QR
-                        </button>
+                        <div className="grid w-full max-w-[520px] grid-cols-[minmax(0,8fr)_minmax(0,3fr)] gap-3 px-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setResult(null);
+                                    setScanning(true);
+                                }}
+                                disabled={loading || imageScanning}
+                                className="inline-flex min-h-[48px] min-w-0 items-center justify-center gap-2 rounded-xl bg-[#23a983] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1f9978] disabled:opacity-50"
+                            >
+                                <FaCamera className="shrink-0 text-base" />
+                                <span className="leading-tight text-center">Bật camera quét QR</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => imageInputRef.current?.click()}
+                                disabled={loading || imageScanning || scanning}
+                                className="inline-flex min-h-[48px] min-w-0 items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-3 text-white/90 backdrop-blur transition-colors hover:bg-white/15 disabled:opacity-50"
+                                aria-label="Chọn ảnh QR"
+                                title="Chọn ảnh QR"
+                            >
+                                <FaUpload className="shrink-0 text-lg" />
+                            </button>
+                        </div>
+                        <input
+                            ref={imageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageChange}
+                        />
                     </div>
                 )}
                 {scanning && (
