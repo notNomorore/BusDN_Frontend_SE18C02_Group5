@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { IoIosArrowRoundBack } from 'react-icons/io'
 import { LuUser } from "react-icons/lu";
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Booking_API, Bus_API, Razorpay_API } from '../utils/constant';
+import { Booking_API, Bus_API, Razorpay_API, Socket_URL } from '../utils/constant';
 import { io } from 'socket.io-client';
 import AuthContext from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
@@ -21,7 +21,7 @@ const PassengerDetails = () => {
       gender: ''
     }))
   )
-  const socket = io("https://triptix-backend-4ryx.onrender.com/")
+  const socket = io(Socket_URL, { path: '/socket.io', transports: ['websocket', 'polling'] })
   const { token } = useContext(AuthContext)
   useEffect(() => {
 

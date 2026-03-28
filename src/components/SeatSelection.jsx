@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { IoIosArrowRoundBack } from 'react-icons/io';
 import { FiUser } from 'react-icons/fi';
-import { Bus_API, Seat_API } from '../utils/constant';
+import { Bus_API, Seat_API, Socket_URL } from '../utils/constant';
 import { io } from 'socket.io-client';
 import AuthContext from '../context/AuthContext';
 import { MdEventSeat } from "react-icons/md";
@@ -17,7 +17,7 @@ const SeatSelection = () => {
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [selectedBus, setSelectedBus] = useState(null);
   const [message, setMessage] = useState('');
-  const socket = io("https://triptix-backend-4ryx.onrender.com/")
+  const socket = io(Socket_URL, { path: '/socket.io', transports: ['websocket', 'polling'] })
   const { token } = useContext(AuthContext)
 
   if (!token) {

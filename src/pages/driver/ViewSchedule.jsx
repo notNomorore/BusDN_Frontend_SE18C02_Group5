@@ -4,6 +4,7 @@ import { FaCalendarAlt, FaBus, FaClock, FaRoute } from 'react-icons/fa';
 import api from '../../utils/api';
 import AuthContext from '../../context/AuthContext';
 import { useDialog } from '../../context/DialogContext';
+import { Socket_URL } from '../../utils/constant';
 
 const ViewSchedule = () => {
     const { token, userRole } = useContext(AuthContext);
@@ -25,7 +26,7 @@ const ViewSchedule = () => {
     useEffect(() => { fetchSchedule(); }, [scheduleUrl]);
 
     useEffect(() => {
-        const socket = io(window.location.origin, { path: '/socket.io', transports: ['websocket', 'polling'] });
+        const socket = io(Socket_URL, { path: '/socket.io', transports: ['websocket', 'polling'] });
         if (token) socket.emit('auth:join', { token });
         const onChange = () => {
             api.get(scheduleUrl).then((res) => {
