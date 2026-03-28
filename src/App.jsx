@@ -168,11 +168,12 @@ function PublicShell() {
   const location = useLocation()
   const isProfileScreen = location.pathname === '/profile'
   const isMonthlyPassResultScreen = location.pathname === '/monthly-pass/result'
+  const isTrackBusScreen = location.pathname === '/track-bus'
 
   return (
-    <div className={`flex min-h-screen flex-col ${isMonthlyPassResultScreen ? 'bg-[#f2fcf8]' : 'bg-[#f5fefa]'}`}>
+    <div className={`flex ${isTrackBusScreen ? 'h-screen overflow-hidden' : 'min-h-screen'} flex-col ${isMonthlyPassResultScreen ? 'bg-[#f2fcf8]' : 'bg-[#f5fefa]'}`}>
       {!isMonthlyPassResultScreen ? <Header /> : null}
-      <main className={`flex-1 min-h-0 ${isProfileScreen ? 'overflow-hidden' : ''}`}>
+      <main className={`flex-1 min-h-0 ${(isProfileScreen || isTrackBusScreen) ? 'overflow-hidden' : ''}`}>
         <Routes>
           <Route path='/' element={<Home />} />
           <Route path='/available-seat' element={<AvailableBus />} />
@@ -189,7 +190,7 @@ function PublicShell() {
           <Route path='/rate-trip/:tripId' element={<RateTripPage />} />
         </Routes>
       </main>
-      {(!isProfileScreen && !isMonthlyPassResultScreen) ? <Footer /> : null}
+      {(!isProfileScreen && !isMonthlyPassResultScreen && !isTrackBusScreen) ? <Footer /> : null}
     </div>
   )
 }
