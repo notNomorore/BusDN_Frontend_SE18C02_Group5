@@ -4,10 +4,10 @@ import api from '../utils/api';
 import CircularProgress from '@mui/material/CircularProgress';
 import { IoArrowBackOutline, IoLocationOutline } from "react-icons/io5";
 import { TbMap2 } from "react-icons/tb";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { MapContainer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useDialog } from '../context/DialogContext';
+import BaseMapTileLayer from '../components/map/BaseMapTileLayer';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -133,10 +133,7 @@ const RouteDetails = () => {
                                     scrollWheelZoom={true}
                                     className="h-full w-full z-0 relative"
                                 >
-                                    <TileLayer
-                                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    />
+                                    <BaseMapTileLayer />
                                     <Polyline positions={mapPositions} color="#059669" weight={5} opacity={0.8} />
 
                                     {geoJsonData.features.map((feature, idx) => {

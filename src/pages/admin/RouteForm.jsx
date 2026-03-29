@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { FaArrowDown, FaArrowLeft, FaArrowUp, FaPaperPlane, FaPlus, FaSave, FaTimes } from 'react-icons/fa'
-import { MapContainer, Marker, Polyline, TileLayer, Tooltip } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import api from '../../utils/api'
 import { useDialog } from '../../context/DialogContext'
+import BaseMapTileLayer from '../../components/map/BaseMapTileLayer'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -110,7 +110,7 @@ function RouteMap({ outboundStops, inboundStops, stopMap }) {
         <p className="text-xs text-gray-400">Marker va duong tuyen se cap nhat theo danh sach tram hai chieu.</p>
       </div>
       <MapContainer center={center} zoom={12} style={{ height: '420px' }} key={center.join(',')}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+        <BaseMapTileLayer />
         {outCoords.length > 1 ? <Polyline positions={outCoords} color="#3b82f6" weight={3} /> : null}
         {inCoords.length > 1 ? <Polyline positions={inCoords} color="#f97316" weight={3} dashArray="6,4" /> : null}
         {outboundStops.map((item, index) => {

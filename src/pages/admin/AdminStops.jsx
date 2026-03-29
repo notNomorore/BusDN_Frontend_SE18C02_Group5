@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import { FaPlus, FaEdit, FaMapMarkerAlt, FaExternalLinkAlt, FaToggleOn, FaToggleOff, FaTimes, FaSearch, FaBolt } from 'react-icons/fa'
 import api from '../../utils/api'
 import { useDialog } from '../../context/DialogContext'
+import BaseMapTileLayer from '../../components/map/BaseMapTileLayer'
 
 // Fix leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl
@@ -142,10 +142,7 @@ function MapPicker({ lat, lng, onChange }) {
       style={{ height: '220px', width: '100%', borderRadius: '10px', zIndex: 0 }}
       maxBounds={DA_NANG_BOUNDS.pad(0.25)}
     >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      />
+      <BaseMapTileLayer />
       <ClickHandler />
       <MapViewport lat={lat} lng={lng} />
       {pos && (
@@ -365,7 +362,7 @@ function StopDetailPanel({ stop, onClose, onEdit, onToggle, toggling }) {
         {stop.lat && stop.lng && (
           <div className="overflow-hidden rounded-lg border border-gray-100">
             <MapContainer center={[parseFloat(stop.lat), parseFloat(stop.lng)]} zoom={15} style={{ height: '160px' }} zoomControl={false} dragging={false} scrollWheelZoom={false}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <BaseMapTileLayer />
               <Marker position={[parseFloat(stop.lat), parseFloat(stop.lng)]} />
             </MapContainer>
           </div>

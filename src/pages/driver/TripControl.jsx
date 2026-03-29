@@ -9,6 +9,56 @@ const GPS_OPTIONS = {
     maximumAge: 0,
 };
 const GPS_HEARTBEAT_MS = 5000;
+const START_EARLY_ALLOWANCE_MINUTES = 10;
+
+const scheduleDateISO = (schedule) => String(schedule?.date || '').substring(0, 10);
+const schedulePlannedStart = (schedule) => schedule?.departureTime || schedule?.shiftTime?.start || null;
+const timeToMinutes = (value) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+    return (Number(match[1]) * 60) + Number(match[2]);
+};
+
+const isScheduleOpen = (schedule) => (
+    !schedule?.actualEnd &&
+    (
+        schedule?.status === 'IN_PROGRESS' ||
+        schedule?.trackingActive === true ||
+        Boolean(schedule?.actualStart)
+    )
+);
+
+const chooseRelevantSchedule = (schedules) => {
+    if (!Array.isArray(schedules) || schedules.length === 0) return null;
+
+    const activeSchedules = schedules
+        .filter(isScheduleOpen)
+        .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+    if (activeSchedules.length) return activeSchedules[0];
+
+    const today = new Date().toISOString().split('T')[0];
+    const nowMinutes = (new Date().getHours() * 60) + new Date().getMinutes();
+
+    const todaySchedules = schedules.filter((schedule) => (
+        scheduleDateISO(schedule) === today &&
+        schedule?.status !== 'COMPLETED' &&
+        schedule?.status !== 'CANCELLED' &&
+        !schedule?.actualEnd
+    ));
+
+    if (!todaySchedules.length) return null;
+
+    return [...todaySchedules].sort((a, b) => {
+        const aStart = timeToMinutes(schedulePlannedStart(a));
+        const bStart = timeToMinutes(schedulePlannedStart(b));
+        const aPast = aStart != null && aStart <= nowMinutes;
+        const bPast = bStart != null && bStart <= nowMinutes;
+
+        if (aPast !== bPast) return aPast ? -1 : 1;
+        if (aPast && bPast) return (bStart ?? -1) - (aStart ?? -1);
+        return (aStart ?? Number.MAX_SAFE_INTEGER) - (bStart ?? Number.MAX_SAFE_INTEGER);
+    })[0];
+};
 
 const TripControl = () => {
     const { showAlert, showConfirm } = useDialog();
@@ -75,8 +125,7 @@ const TripControl = () => {
         try {
             const res = await api.get('/api/driver/schedule');
             if (res.data.ok) {
-                const today = new Date().toISOString().split('T')[0];
-                const sched = res.data.schedules.find((item) => item.date?.substring(0, 10) === today) || null;
+                const sched = chooseRelevantSchedule(res.data.schedules);
                 setTodaySchedule(sched);
                 syncFromSchedule(sched);
             }
@@ -280,6 +329,17 @@ const TripControl = () => {
                 ? 'bg-amber-50 text-amber-700 border border-amber-200'
                 : 'bg-slate-50 text-slate-600 border border-slate-200';
 
+    const currentDate = new Date().toISOString().split('T')[0];
+    const plannedStartMinutes = timeToMinutes(schedulePlannedStart(todaySchedule));
+    const currentMinutes = (new Date().getHours() * 60) + new Date().getMinutes();
+    const startDisabledReason = !todaySchedule
+        ? 'Khong tim thay chuyen phu hop'
+        : scheduleDateISO(todaySchedule) !== currentDate && !isScheduleOpen(todaySchedule)
+            ? 'Chuyen nay khong thuoc ca hien tai'
+            : plannedStartMinutes != null && plannedStartMinutes - currentMinutes > START_EARLY_ALLOWANCE_MINUTES
+                ? `Chua den gio xuat ben. Ban chi co the bat dau som toi da ${START_EARLY_ALLOWANCE_MINUTES} phut.`
+                : '';
+
     return (
         <div className="max-w-md mx-auto space-y-6">
             <div className="pb-4 border-b border-gray-200">
@@ -293,7 +353,9 @@ const TripControl = () => {
                 <p className="text-center text-gray-400">Đang tải...</p>
             ) : todaySchedule ? (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                    <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Chuyến hôm nay</p>
+                    <p className="text-xs text-gray-400 uppercase font-semibold mb-2">
+                        {isScheduleOpen(todaySchedule) ? 'Chuyen dang mo' : 'Chuyen can xu ly'}
+                    </p>
                     <div className="flex items-center gap-3 mb-3">
                         <span className="bg-[#23a983] text-white px-3 py-1 rounded-lg font-bold text-lg">
                             {todaySchedule.routeId?.routeNumber}
@@ -337,13 +399,18 @@ const TripControl = () => {
 
             <div className="space-y-3">
                 {tripState === 'idle' && (
-                    <button
-                        onClick={handleStart}
-                        disabled={!todaySchedule}
-                        className="w-full bg-[#23a983] hover:bg-[#1a8a6a] text-white py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg disabled:opacity-40"
-                    >
-                        <FaPlay /> Bắt đầu chuyến
-                    </button>
+                    <>
+                        <button
+                            onClick={handleStart}
+                            disabled={!todaySchedule || Boolean(startDisabledReason)}
+                            className="w-full bg-[#23a983] hover:bg-[#1a8a6a] text-white py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg disabled:opacity-40"
+                        >
+                            <FaPlay /> Bắt đầu chuyến
+                        </button>
+                        {startDisabledReason ? (
+                            <p className="text-center text-sm text-amber-700">{startDisabledReason}</p>
+                        ) : null}
+                    </>
                 )}
                 {tripState === 'started' && (
                     <button

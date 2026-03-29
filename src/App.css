@@ -207,4 +207,22 @@
   .leaflet-container {
     z-index: 0;
   }
+
+  /* Tailwind preflight can distort leaflet tile images */
+  .leaflet-container .leaflet-tile,
+  .leaflet-container .leaflet-marker-icon,
+  .leaflet-container .leaflet-marker-shadow {
+    max-width: none !important;
+    max-height: none !important;
+  }
+
+  .leaflet-container .leaflet-tile-pane img,
+  .leaflet-container img.leaflet-tile {
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    visibility: inherit !important;
+    opacity: 1 !important;
+    mix-blend-mode: normal !important;
+  }
 }

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 import { io } from 'socket.io-client'
 import {
   FaBus,
@@ -12,6 +11,7 @@ import {
 } from 'react-icons/fa'
 import api from '../../utils/api'
 import { useDialog } from '../../context/DialogContext'
+import BaseMapTileLayer from '../../components/map/BaseMapTileLayer'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -30,17 +30,23 @@ function FitLiveBounds({ vehicles }) {
       .filter((vehicle) => Number.isFinite(Number(vehicle.currentLocation?.lat)) && Number.isFinite(Number(vehicle.currentLocation?.lng)))
       .map((vehicle) => [Number(vehicle.currentLocation.lat), Number(vehicle.currentLocation.lng)])
 
-    if (!points.length) {
-      map.setView(DEFAULT_CENTER, 12)
-      return
-    }
+    const rafId = window.requestAnimationFrame(() => {
+      map.invalidateSize()
 
-    if (points.length === 1) {
-      map.setView(points[0], 14)
-      return
-    }
+      if (!points.length) {
+        map.setView(DEFAULT_CENTER, 12)
+        return
+      }
 
-    map.fitBounds(points, { padding: [40, 40] })
+      if (points.length === 1) {
+        map.setView(points[0], 14)
+        return
+      }
+
+      map.fitBounds(points, { padding: [40, 40] })
+    })
+
+    return () => window.cancelAnimationFrame(rafId)
   }, [map, vehicles])
 
   return null
@@ -108,33 +114,121 @@ const buildBusMarker = (vehicle) => L.divIcon({
   popupAnchor: [0, -42],
 })
 
-const statusLabel = (vehicle) => {
-  if (!vehicle?.isOnline) return { text: 'Mất tín hiệu GPS', color: 'text-red-600' }
-  if (vehicle.tripStatus === 'IN_PROGRESS') return { text: 'Đang chạy', color: 'text-green-600' }
-  return { text: 'Đang chờ', color: 'text-yellow-600' }
+const formatCurrency = (value) => {
+  const amount = Number(value || 0)
+  if (!amount) return '0 đ'
+  if (amount >= 1000000) {
+    return `${(amount / 1000000).toFixed(amount % 1000000 === 0 ? 0 : 1)} tr`
+  }
+  return `${amount.toLocaleString('vi-VN')} đ`
 }
+
+const isScheduleOnline = (schedule) => {
+  const updatedAt = schedule?.currentLocation?.updatedAt
+  if (!updatedAt) return false
+  return (Date.now() - new Date(updatedAt).getTime()) <= (2 * 60 * 1000)
+}
+
+const buildScheduleStatus = (schedule) => {
+  if (!schedule) return { text: 'Chưa có dữ liệu', color: 'text-gray-400' }
+
+  if (schedule.actualEnd || schedule.status === 'COMPLETED') {
+    return { text: 'Hoàn thành', color: 'text-gray-500' }
+  }
+
+  if (schedule.status === 'IN_PROGRESS') {
+    if (!isScheduleOnline(schedule)) {
+      return { text: 'Mất tín hiệu GPS', color: 'text-red-600 font-bold' }
+    }
+    return { text: 'Đang chạy', color: 'text-green-600' }
+  }
+
+  if (schedule.status === 'CANCELLED') {
+    return { text: 'Đã hủy', color: 'text-red-500' }
+  }
+
+  return { text: 'Đang chuẩn bị', color: 'text-yellow-600' }
+}
+
+const getRecentSchedules = (schedules) => (
+  [...schedules]
+    .filter((schedule) => schedule?.routeId || schedule?.busId)
+    .sort((a, b) => {
+      const aTime = new Date(a.currentLocation?.updatedAt || a.actualStart || a.departureTime || a.date || 0).getTime()
+      const bTime = new Date(b.currentLocation?.updatedAt || b.actualStart || b.departureTime || b.date || 0).getTime()
+      return bTime - aTime
+    })
+    .slice(0, 6)
+)
+
+const hasValidCoordinates = (vehicle) => (
+  Number.isFinite(Number(vehicle?.currentLocation?.lat)) &&
+  Number.isFinite(Number(vehicle?.currentLocation?.lng))
+)
+
+const isVehicleLive = (vehicle) => (
+  hasValidCoordinates(vehicle) &&
+  (
+    vehicle?.trackingActive === true ||
+    vehicle?.isOnline === true ||
+    String(vehicle?.tripStatus || '').toUpperCase() === 'IN_PROGRESS'
+  )
+)
 
 const Dashboard = () => {
   const { showAlert } = useDialog()
   const [vehicles, setVehicles] = useState([])
   const [routes, setRoutes] = useState([])
+  const [allSchedules, setAllSchedules] = useState([])
+  const [todaySchedules, setTodaySchedules] = useState([])
+  const [revenueSummary, setRevenueSummary] = useState({ totalRevenue: 0, totalPassengers: 0, totalTrips: 0 })
   const [loadingMap, setLoadingMap] = useState(true)
 
   const fetchDashboardData = async (withLoading = true) => {
     if (withLoading) setLoadingMap(true)
+
+    const today = new Date().toISOString().substring(0, 10)
+
     try {
-      const [trackingRes, routeRes] = await Promise.all([
+      const [trackingRes, routeRes, scheduleRes, revenueRes] = await Promise.allSettled([
         api.get('/api/public/tracking/live?onlyRunning=false'),
         api.get('/api/public/routes'),
+        api.get('/api/admin/schedules'),
+        api.get('/api/admin/reports/revenue', {
+          params: { from: today, to: today, group: 'day' },
+        }),
       ])
 
-      setVehicles(Array.isArray(trackingRes.data?.vehicles) ? trackingRes.data.vehicles : [])
+      const trackingData = trackingRes.status === 'fulfilled' ? trackingRes.value.data : {}
+      const routeData = routeRes.status === 'fulfilled' ? routeRes.value.data : {}
+      const scheduleData = scheduleRes.status === 'fulfilled' ? scheduleRes.value.data : {}
+      const revenueData = revenueRes.status === 'fulfilled' ? revenueRes.value.data : {}
 
-      const routeList = routeRes.data?.data?.routes || routeRes.data?.data || routeRes.data?.routes || routeRes.data || []
+      setVehicles(Array.isArray(trackingData?.vehicles) ? trackingData.vehicles : [])
+
+      const routeList = routeData?.data?.routes || routeData?.data || routeData?.routes || routeData || []
       setRoutes(Array.isArray(routeList) ? routeList : [])
+
+      const schedules = Array.isArray(scheduleData?.schedules) ? scheduleData.schedules : []
+      setAllSchedules(schedules)
+      const todayOnly = schedules.filter((schedule) => {
+        const rawDate = schedule?.date ? String(schedule.date).substring(0, 10) : ''
+        return rawDate === today
+      })
+      setTodaySchedules(todayOnly)
+
+      if (revenueData?.ok) {
+        setRevenueSummary(revenueData.summary || { totalRevenue: 0, totalPassengers: 0, totalTrips: 0 })
+      } else {
+        setRevenueSummary({ totalRevenue: 0, totalPassengers: 0, totalTrips: 0 })
+      }
     } catch (error) {
-      console.error('Dashboard realtime fetch error:', error)
+      console.error('Dashboard fetch error:', error)
       setVehicles([])
+      setRoutes([])
+      setAllSchedules([])
+      setTodaySchedules([])
+      setRevenueSummary({ totalRevenue: 0, totalPassengers: 0, totalTrips: 0 })
     } finally {
       if (withLoading) setLoadingMap(false)
     }
@@ -151,31 +245,77 @@ const Dashboard = () => {
     })
 
     const refresh = () => fetchDashboardData(false)
+    const handleScheduleChanged = (payload) => {
+      refresh()
+
+      if (payload?.action !== 'completed') return
+
+      const licensePlate = payload?.licensePlate || 'xe chua ro bien so'
+      const routeLabel = payload?.routeNumber
+        ? `tuyen ${payload.routeNumber}${payload?.routeName ? ` - ${payload.routeName}` : ''}`
+        : 'mot chuyen xe'
+      const actualEnd = payload?.actualEnd ? ` luc ${payload.actualEnd}` : ''
+
+      showAlert(
+        `${licensePlate} - ${routeLabel} da ket thuc chuyen${actualEnd}.`,
+        'Thong bao ket thuc chuyen',
+      )
+    }
 
     socket.on('connect', () => {
       socket.emit('admin:join')
     })
     socket.on('tracking:updated', refresh)
-    socket.on('schedule:changed', refresh)
+    socket.on('schedule:changed', handleScheduleChanged)
     socket.on('tracking:gps-lost', (payload) => {
       refresh()
       showAlert(payload?.message || 'Mất tín hiệu GPS từ xe đang chạy.', payload?.title || 'Cảnh báo khẩn GPS')
     })
 
-    const timer = window.setInterval(refresh, 10000)
+    const timerId = window.setInterval(refresh, 10000)
 
     return () => {
-      window.clearInterval(timer)
+      window.clearInterval(timerId)
       socket.off('tracking:updated', refresh)
-      socket.off('schedule:changed', refresh)
+      socket.off('schedule:changed', handleScheduleChanged)
       socket.off('tracking:gps-lost')
       socket.disconnect()
     }
   }, [showAlert])
 
+  const liveVehicles = useMemo(
+    () => vehicles.filter(isVehicleLive),
+    [vehicles],
+  )
+
+  const activeSchedules = useMemo(
+    () => allSchedules.filter((schedule) => (
+      schedule?.status === 'IN_PROGRESS' ||
+      schedule?.trackingActive === true ||
+      (schedule?.actualStart && !schedule?.actualEnd)
+    )),
+    [allSchedules],
+  )
+
+  const visibleSchedules = useMemo(() => {
+    const seen = new Set()
+    return [...activeSchedules, ...todaySchedules].filter((schedule) => {
+      const id = String(schedule?._id || '')
+      if (!id || seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+  }, [activeSchedules, todaySchedules])
+
   const stats = useMemo(() => {
-    const running = vehicles.filter((vehicle) => vehicle.tripStatus === 'IN_PROGRESS').length
-    const warning = vehicles.filter((vehicle) => !vehicle.isOnline || ['FULL', 'CROWDED'].includes(String(vehicle.loadStatus || '').toUpperCase())).length
+    const runningCount = Math.max(liveVehicles.length, activeSchedules.length)
+    const scheduleBaseCount = activeSchedules.length > 0 ? activeSchedules.length : todaySchedules.length
+    const warningCount = visibleSchedules.filter((schedule) => {
+      const lostGps = schedule.status === 'IN_PROGRESS' && !isScheduleOnline(schedule)
+      const crowded = ['FULL', 'CROWDED'].includes(String(schedule.loadStatus || '').toUpperCase())
+      return lostGps || crowded
+    }).length
+
     return [
       {
         title: 'Tổng tuyến',
@@ -185,28 +325,26 @@ const Dashboard = () => {
       },
       {
         title: 'Xe đang chạy',
-        value: `${running}/${vehicles.length || 0}`,
+        value: `${runningCount}/${scheduleBaseCount || 0}`,
         icon: <FaBus className="text-5xl opacity-30" />,
         classes: 'from-green-500 to-[#23a983] text-white',
       },
       {
         title: 'Cảnh báo',
-        value: String(warning),
+        value: String(warningCount),
         icon: <FaExclamationTriangle className="text-5xl opacity-20" />,
         classes: 'from-yellow-400 to-yellow-500 text-yellow-900',
       },
       {
         title: 'Doanh thu hôm nay',
-        value: 'Đang cập nhật',
+        value: formatCurrency(revenueSummary.totalRevenue),
         icon: <FaMoneyBillWave className="text-5xl opacity-30" />,
         classes: 'from-purple-500 to-purple-700 text-white',
       },
     ]
-  }, [routes.length, vehicles])
+  }, [activeSchedules.length, liveVehicles.length, revenueSummary.totalRevenue, routes.length, todaySchedules.length, visibleSchedules])
 
-  const recentVehicles = [...vehicles]
-    .sort((a, b) => new Date(b.currentLocation?.updatedAt || 0) - new Date(a.currentLocation?.updatedAt || 0))
-    .slice(0, 6)
+  const recentSchedules = useMemo(() => getRecentSchedules(visibleSchedules), [visibleSchedules])
 
   return (
     <div className="space-y-6">
@@ -251,12 +389,10 @@ const Dashboard = () => {
               </div>
             ) : (
               <MapContainer center={DEFAULT_CENTER} zoom={12} scrollWheelZoom className="h-full w-full">
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <FitLiveBounds vehicles={vehicles} />
-                {vehicles.map((vehicle) => {
+                <BaseMapTileLayer />
+                <FitLiveBounds vehicles={liveVehicles} />
+
+                {liveVehicles.map((vehicle) => {
                   const lat = Number(vehicle.currentLocation?.lat)
                   const lng = Number(vehicle.currentLocation?.lng)
                   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
@@ -279,6 +415,12 @@ const Dashboard = () => {
                           <p className="mb-1 text-xs text-gray-500">
                             Mức độ đông: {Math.round(Number(vehicle.occupancyPercentage || 0))}% · {vehicle.loadStatus || 'NORMAL'}
                           </p>
+                          <span
+                            className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm"
+                            style={{ backgroundColor: vehicle.loadColor || '#16a34a' }}
+                          >
+                            {vehicle.isOnline ? 'Đang cập nhật' : 'Mất tín hiệu tạm thời'}
+                          </span>
                         </div>
                       </Popup>
                     </Marker>
@@ -286,6 +428,8 @@ const Dashboard = () => {
                 })}
               </MapContainer>
             )}
+
+
           </div>
         </section>
 
@@ -294,21 +438,22 @@ const Dashboard = () => {
             <h2 className="text-lg font-bold text-gray-800">Trạng thái chuyến gần nhất</h2>
             <p className="mt-1 text-sm text-gray-500">Cập nhật nhanh tình trạng xe và sự cố.</p>
           </div>
+
           <ul className="mt-5 divide-y divide-gray-100 text-sm">
-            {recentVehicles.length === 0 ? (
-              <li className="px-6 py-8 text-center text-gray-400">Chưa có xe nào gửi vị trí realtime.</li>
-            ) : recentVehicles.map((vehicle) => {
-              const status = statusLabel(vehicle)
+            {recentSchedules.length === 0 ? (
+              <li className="px-6 py-8 text-center text-gray-400">Chưa có chuyến nào trong hôm nay.</li>
+            ) : recentSchedules.map((schedule) => {
+              const status = buildScheduleStatus(schedule)
               return (
-                <li key={vehicle.scheduleId} className="px-6 py-4 transition-colors hover:bg-gray-50">
+                <li key={schedule._id} className="px-6 py-4 transition-colors hover:bg-gray-50">
                   <div className="flex items-center justify-between gap-3">
                     <div className="font-semibold text-gray-800">
                       <span className="mr-2 rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
-                        {vehicle.routeNumber || '--'}
+                        {schedule.routeId?.routeNumber || '--'}
                       </span>
-                      {vehicle.licensePlate || 'Chưa gán biển số'}
+                      {schedule.busId?.licensePlate || 'Chưa gán biển số'}
                     </div>
-                    <span className={`font-medium ${status.color}`}>
+                    <span className={status.color}>
                       {status.text}
                     </span>
                   </div>
